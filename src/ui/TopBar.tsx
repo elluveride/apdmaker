@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { emptyDoc } from '../model/defaults';
 import { sampleDoc } from '../model/sample';
 import { exportJson, exportSheetPng, exportSheetSvg, exportSurfacePng, readDocFile } from '../io/files';
+import { EMBEDDED } from '../env';
 import { useStore } from '../store/store';
 import { Segmented } from './fields';
 import { BrandMark, HelpIcon, MenuIcon, PanelIcon, RedoIcon, UndoIcon } from './icons';
@@ -123,22 +124,28 @@ function FileMenu() {
           <button role="menuitem" type="button" onClick={() => { setOpen(false); fileRef.current?.click(); }}>
             Open airport file…
           </button>
-          <button role="menuitem" type="button" onClick={run(() => exportJson(s().doc))}>
-            Save airport file (.apd.json)
-          </button>
-          <hr />
-          <button role="menuitem" type="button" onClick={run(() => exportSheetSvg(s().doc))}>
-            Export chart · SVG
-          </button>
-          <button role="menuitem" type="button" onClick={run(() => exportSheetPng(s().doc))}>
-            Export chart · PNG 300 dpi
-          </button>
-          <button role="menuitem" type="button" onClick={run(() => exportSurfacePng(s().doc))}>
-            Export surface view · PNG
-          </button>
-          <button role="menuitem" type="button" onClick={run(() => s().setPrinting(true))}>
-            Print chart…
-          </button>
+          {EMBEDDED ? (
+            <p className="menu-note">Saving, exporting and printing are available when you run APD Maker from its repository.</p>
+          ) : (
+            <>
+              <button role="menuitem" type="button" onClick={run(() => exportJson(s().doc))}>
+                Save airport file (.apd.json)
+              </button>
+              <hr />
+              <button role="menuitem" type="button" onClick={run(() => exportSheetSvg(s().doc))}>
+                Export chart · SVG
+              </button>
+              <button role="menuitem" type="button" onClick={run(() => exportSheetPng(s().doc))}>
+                Export chart · PNG 300 dpi
+              </button>
+              <button role="menuitem" type="button" onClick={run(() => exportSurfacePng(s().doc))}>
+                Export surface view · PNG
+              </button>
+              <button role="menuitem" type="button" onClick={run(() => s().setPrinting(true))}>
+                Print chart…
+              </button>
+            </>
+          )}
         </div>
       )}
       <input

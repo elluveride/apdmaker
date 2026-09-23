@@ -70,4 +70,6 @@ src/
   io/       SVG / PNG / JSON export and import
 ```
 
+Build with `VITE_EMBEDDED=true` for sandboxed frames that block downloads and printing; those controls are then hidden.
+
 To publish on GitHub Pages, set **Settings → Pages → Source** to *GitHub Actions*, then run the **Deploy to GitHub Pages** workflow.

@@ -3,6 +3,7 @@ import { EditorCanvas } from '../editor/Canvas';
 import { embeddedFontCss, exportSheetPng, exportSheetSvg, exportSurfacePng } from '../io/files';
 import { derive } from '../model/derive';
 import { SheetSvg } from '../render/Sheet';
+import { EMBEDDED } from '../env';
 import { useStore } from '../store/store';
 import { DownloadIcon, FitIcon, MinusIcon, PlusIcon, PrintIcon } from './icons';
 
@@ -17,7 +18,9 @@ async function attempt(fn: () => Promise<void>) {
 export function Viewer() {
   const style = useStore((s) => s.style);
   // Warm the font cache so an export click is fast enough to keep its download gesture.
-  useEffect(() => void embeddedFontCss(), []);
+  useEffect(() => {
+    if (!EMBEDDED) void embeddedFontCss();
+  }, []);
   return style === 'chart' ? <SheetViewer /> : <SurfaceViewer />;
 }
 
@@ -30,9 +33,11 @@ function SurfaceViewer() {
         <button type="button" className="btn" onClick={() => useStore.getState().requestFit()}>
           <FitIcon size={16} /> Fit
         </button>
-        <button type="button" className="btn" onClick={() => attempt(() => exportSurfacePng(doc))}>
-          <DownloadIcon size={16} /> PNG
-        </button>
+        {!EMBEDDED && (
+          <button type="button" className="btn" onClick={() => attempt(() => exportSurfacePng(doc))}>
+            <DownloadIcon size={16} /> PNG
+          </button>
+        )}
       </div>
     </div>
   );
@@ -122,16 +127,20 @@ function SheetViewer() {
         <button type="button" className="icon-btn" onClick={() => zoomBy(1.25)} aria-label="Zoom in">
           <PlusIcon size={18} />
         </button>
-        <span className="divider" />
-        <button type="button" className="btn" onClick={() => attempt(() => exportSheetSvg(doc))}>
-          <DownloadIcon size={16} /> SVG
-        </button>
-        <button type="button" className="btn" onClick={() => attempt(() => exportSheetPng(doc))}>
-          <DownloadIcon size={16} /> PNG
-        </button>
-        <button type="button" className="btn" onClick={() => useStore.getState().setPrinting(true)}>
-          <PrintIcon size={16} /> Print
-        </button>
+        {!EMBEDDED && (
+          <>
+            <span className="divider" />
+            <button type="button" className="btn" onClick={() => attempt(() => exportSheetSvg(doc))}>
+              <DownloadIcon size={16} /> SVG
+            </button>
+            <button type="button" className="btn" onClick={() => attempt(() => exportSheetPng(doc))}>
+              <DownloadIcon size={16} /> PNG
+            </button>
+            <button type="button" className="btn" onClick={() => useStore.getState().setPrinting(true)}>
+              <PrintIcon size={16} /> Print
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

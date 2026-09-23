@@ -230,8 +230,8 @@ function Graticule({ refLat, refLon, frame, toPage, toWorld }: GraticuleProps) {
     ticks.push(
       <path key={`la${s}`} d={`M${frame.minX} ${f(y)}h${len}M${frame.maxX} ${f(y)}h${-len}`} stroke={CHART.ink} strokeWidth={0.45} />,
     );
-    // The top band holds the frequency box; keep latitude labels out of it.
-    if (major && y > frame.minY + 60) {
+    // Keep latitude labels out of the frequency box band and the longitude labels.
+    if (major && y > frame.minY + 60 && y < frame.maxY - 18) {
       ticks.push(
         <text key={`lt${s}`} x={frame.minX + 8} y={f(y)} fontSize={4.2} fontWeight={500} dominantBaseline="central" fill={CHART.ink}>
           {formatDMS(s / 3600, 'lat')}

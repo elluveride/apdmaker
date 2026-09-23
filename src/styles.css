@@ -417,6 +417,13 @@ button:disabled {
   background: var(--accent-soft);
 }
 
+.menu-note {
+  margin: 6px 10px;
+  max-width: 240px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .menu-list hr {
   border: 0;
   border-top: 1px solid var(--line);
