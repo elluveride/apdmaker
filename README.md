@@ -21,7 +21,7 @@ Everything runs in the browser. Work is saved automatically to local storage and
 ### Taxiway clean-up
 
 - **Rename**: double-click a taxiway's name on the chart, press `F2` (or `Enter`) with it selected, use **Rename** in the bar that appears over the canvas, or double-click it in **Layers**. Names are upper case letters and digits, up to 8 characters.
-- **Auto-smooth**: keeps the first and last points and redraws the smoothest curve between them. The result is a straight line when the path never strays far from one (brief wobbles don't count), otherwise a single curve. If one curve can't follow the route, like a parallel taxiway that steps away from its runway and back, it uses the fewest curves joined without corners. Taxiways whose ends were attached to it slide along with it, hold-short lines update, and `Ctrl+Z` undoes it.
+- **Auto-smooth**: keeps the first and last points and rebuilds the taxiway the way real ones are laid out. A path that never strays far from a straight line becomes one (brief wobbles don't count). Otherwise the drawing is read as straight legs: a curve drawn or clicked out in steps turns into the single corner it implies, while a real straight between two turns keeps them apart. Legs that meet a runway or taxiway within 20° of square are squared to it, and a runway exit drawn near 30° becomes exactly 30°. Each corner is rounded at the taxiway centerline radius the FAA tabulates for that width and turn angle (AC 150/5300-13A tables 4-4 to 4-10; e.g. 95 ft for a 90° turn on a 75 ft taxiway). Taxiways whose ends were attached to it slide along with it, hold-short lines update, smoothing twice changes nothing, and `Ctrl+Z` undoes it.
 
 `Ctrl+Z` / `Ctrl+Shift+Z` undo and redo, `Ctrl+D` duplicates, arrow keys nudge 10 ft (`Shift`: 100 ft), `?` lists every shortcut.
 
@@ -51,7 +51,7 @@ Start with a runway, then add more in layers. The **Inspect** panel's checklist 
 - **Edit · Surface**: pavement with threshold bars, designators, centerlines, aiming points, touchdown zone bars, side stripes, displaced-threshold arrows, blast-pad chevrons, taxiway centerlines, hold-short markings and signs.
 - **View**: the full chart sheet with title block, frequency box, `FIELD ELEV` box, north and magnetic arrows with variation, scale and coordinate ticks. Export it as SVG or 300 dpi PNG, or print it at TPP page size (5.375 × 8.25 in). The surface view can be exported as PNG.
 
-Symbology follows the FAA airport diagram legend and the marking dimensions follow AC 150/5340-1M. Charts made here are for fun and illustration. **Not for navigation.**
+Symbology follows the FAA airport diagram legend, marking dimensions follow AC 150/5340-1M, and taxiway turn geometry follows AC 150/5300-13A. Charts made here are for fun and illustration. **Not for navigation.**
 
 ## Development
 

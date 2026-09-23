@@ -375,9 +375,9 @@ function NodeTools({ f, closed }: { f: Taxiway | Area; closed: boolean }) {
             <SmoothIcon size={18} /> Auto-smooth
           </button>
           <p className="field-hint">
-            Keeps the first and last points and redraws the smoothest curve between them: a straight line when the path
-            never strays far from one. If one curve can't follow the route (a U around a runway end), it uses the fewest
-            curves joined without corners. Taxiways attached to it move with it.
+            Keeps the first and last points and rebuilds the taxiway the way real ones are laid out: straight legs, squared
+            to the runway or taxiway they meet, joined by turns at the FAA centerline radius for its width. A straight line
+            when the path never strays far from one. Taxiways attached to it move with it.
           </p>
         </div>
       )}

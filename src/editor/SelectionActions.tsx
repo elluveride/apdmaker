@@ -16,7 +16,7 @@ export function SelectionActions() {
       <button
         type="button"
         onClick={() => useStore.getState().autoSmooth(selected.id)}
-        title="Keep the first and last points; redraw the smoothest curve between them"
+        title="Keep the first and last points; rebuild as straight legs joined by standard taxiway turns"
       >
         Auto-smooth
       </button>

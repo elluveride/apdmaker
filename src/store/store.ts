@@ -278,15 +278,18 @@ export const useStore = create<State>((set, get) => ({
     get().commit(() => res.doc);
     set({ selection: { id, node: null } });
     const within = `within ${Math.round(res.deviation)} ft of the old path`;
+    const turns = res.radii.length;
+    const lo = Math.min(...res.radii);
+    const hi = Math.max(...res.radii);
+    const radius = lo === hi ? `${lo} ft` : `${lo}–${hi} ft`;
     const shape = res.straight
       ? 'a straight line'
-      : res.pieces === 1
-        ? `one smooth curve, ${within}`
-        : `${res.pieces} curves joined without corners, ${within} (one curve would have strayed ${Math.round(res.singleCurveError ?? 0)} ft)`;
+      : `${turns + 1} straight legs with ${turns === 1 ? 'a' : turns} ${radius} turn${turns === 1 ? '' : 's'}, ${within}`;
+    const squared = res.squared ? ` ${res.squared === 1 ? 'One end' : 'Both ends'} squared to what ${res.squared === 1 ? 'it meets' : 'they meet'}.` : '';
     const moved = res.reattached
       ? ` ${res.reattached} connected taxiway end${res.reattached === 1 ? '' : 's'} moved with it.`
       : '';
-    get().showToast(`${label}: ${res.before} points → ${shape}.${moved} Ctrl+Z undoes it.`);
+    get().showToast(`${label}: ${res.before} points → ${shape}.${squared}${moved} Ctrl+Z undoes it.`);
   },
 
   select: (id, node = null) => set({ selection: { id, node } }),
