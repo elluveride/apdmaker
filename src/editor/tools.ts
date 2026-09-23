@@ -314,9 +314,18 @@ export function doubleClick(ctx: PointerCtx): void {
     toggleSmooth(h.id, h.index);
     return;
   }
+  if (h?.type === 'twl') {
+    draftStore().setRenaming(h.id);
+    return;
+  }
   const id = featureIdAt(ctx.target);
   const f = id ? findFeature(id) : undefined;
   if (!f) return;
+  if (f.kind === 'taxiway' && ctx.target?.closest('[data-role="name"]')) {
+    s.select(f.id);
+    draftStore().setRenaming(f.id);
+    return;
+  }
   if (f.kind === 'taxiway' || f.kind === 'area') {
     const closed = f.kind === 'area' || f.closed;
     const poly = derive(s.doc).polys.get(f.id);
@@ -551,4 +560,12 @@ export function escapeDraft(): boolean {
 
 export function cancelGesture(): void {
   gesture = null;
+}
+
+/** F2 / Enter: rename a selected taxiway in place, or edit a selected label's text. */
+export function renameSelection(): void {
+  const s = store();
+  const f = s.selection.id ? findFeature(s.selection.id) : undefined;
+  if (f?.kind === 'taxiway') draftStore().setRenaming(f.id);
+  else if (f?.kind === 'label') s.requestFocusText();
 }

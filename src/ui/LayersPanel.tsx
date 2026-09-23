@@ -1,4 +1,6 @@
+import { useRef, useState } from 'react';
 import { derive } from '../model/derive';
+import { cleanTaxiwayName } from '../model/smooth';
 import { featureTitle } from '../model/featureOps';
 import type { Feature, FeatureKind } from '../model/types';
 import { useStore } from '../store/store';
@@ -31,7 +33,35 @@ function KindIcon({ f }: { f: Feature }) {
   }
 }
 
+function RenameField({ id, initial, onDone }: { id: string; initial: string; onDone: () => void }) {
+  const [value, setValue] = useState(initial);
+  const done = useRef(false);
+  const finish = (save: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    if (save) useStore.getState().renameTaxiway(id, value);
+    onDone();
+  };
+  return (
+    <input
+      className="layer-rename"
+      aria-label="Taxiway name"
+      value={value}
+      autoFocus
+      spellCheck={false}
+      onFocus={(e) => e.target.select()}
+      onChange={(e) => setValue(cleanTaxiwayName(e.target.value))}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') finish(true);
+        if (e.key === 'Escape') finish(false);
+      }}
+      onBlur={() => finish(true)}
+    />
+  );
+}
+
 export function LayersPanel() {
+  const [editing, setEditing] = useState<string | null>(null);
   const doc = useStore((s) => s.doc);
   const selection = useStore((s) => s.selection);
   const select = useStore((s) => s.select);
@@ -56,10 +86,20 @@ export function LayersPanel() {
             <ul>
               {items.map((f) => (
                 <li key={f.id} className={`${selection.id === f.id ? 'selected' : ''} ${f.hidden ? 'hidden' : ''}`}>
-                  <button type="button" className="layer-main" onClick={() => select(f.id)}>
-                    <KindIcon f={f} />
-                    <span>{featureTitle(f, infos)}</span>
-                  </button>
+                  {editing === f.id && f.kind === 'taxiway' ? (
+                    <RenameField id={f.id} initial={f.name} onDone={() => setEditing(null)} />
+                  ) : (
+                    <button
+                      type="button"
+                      className="layer-main"
+                      onClick={() => select(f.id)}
+                      onDoubleClick={() => f.kind === 'taxiway' && setEditing(f.id)}
+                      title={f.kind === 'taxiway' ? 'Double-click to rename' : undefined}
+                    >
+                      <KindIcon f={f} />
+                      <span>{featureTitle(f, infos)}</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="icon-btn"

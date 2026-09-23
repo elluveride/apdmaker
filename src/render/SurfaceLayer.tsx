@@ -366,7 +366,7 @@ export function SurfaceLayer({ doc, derived, px }: Props) {
           if (!poly) return null;
           const { point } = pointAtLength(poly, poly.length * t.labelT);
           return (
-            <g key={t.id} data-id={t.id}>
+            <g key={t.id} data-id={t.id} data-role="name">
               <Screen at={point} px={px}>
                 <Sign text={t.name} kind="location" />
               </Screen>

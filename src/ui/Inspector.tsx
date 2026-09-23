@@ -3,6 +3,7 @@ import { add, cornerNode, dirFromBearing, leftOf, mid, mul, reverseNodes, rightO
 import { derive } from '../model/derive';
 import { newRunway, SYMBOL_NAMES } from '../model/defaults';
 import { featureTitle, rotateFeature } from '../model/featureOps';
+import { cleanTaxiwayName } from '../model/smooth';
 import {
   defaultHoldDistance,
   formatBearing,
@@ -30,7 +31,7 @@ import type {
 import { selectedFeature, useStore } from '../store/store';
 import { Checklist } from './Checklist';
 import { Field, NumberInput, Row, Section, Segmented, Select, TextInput, Toggle } from './fields';
-import { ArrowDownIcon, ArrowUpIcon, CopyIcon, EyeIcon, TrashIcon } from './icons';
+import { ArrowDownIcon, ArrowUpIcon, CopyIcon, EyeIcon, SmoothIcon, TrashIcon } from './icons';
 
 type Update<F> = (fn: (f: F) => F, key?: string) => void;
 
@@ -358,6 +359,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function NodeTools({ f, closed }: { f: Taxiway | Area; closed: boolean }) {
   const node = useStore((s) => s.selection.node);
+  const autoSmooth = useStore((s) => s.autoSmooth);
   const select = useStore((s) => s.select);
   const update = useUpdate<Taxiway | Area>(f);
   const n = node !== null ? f.nodes[node] : undefined;
@@ -367,6 +369,18 @@ function NodeTools({ f, closed }: { f: Taxiway | Area; closed: boolean }) {
 
   return (
     <Section title={`Shape · ${f.nodes.length} points`}>
+      {f.kind === 'taxiway' && (
+        <div className="smooth-box">
+          <button type="button" className="btn primary wide" onClick={() => autoSmooth(f.id)}>
+            <SmoothIcon size={18} /> Auto-smooth
+          </button>
+          <p className="field-hint">
+            Keeps the first and last points and redraws the smoothest curve between them: a straight line when the path
+            never strays far from one. If one curve can't follow the route (a U around a runway end), it uses the fewest
+            curves joined without corners. Taxiways attached to it move with it.
+          </p>
+        </div>
+      )}
       {n && node !== null ? (
         <div className="node-box">
           <div className="node-title">Point {node + 1}</div>
@@ -440,11 +454,11 @@ function NodeTools({ f, closed }: { f: Taxiway | Area; closed: boolean }) {
         <p className="muted small">Click a square handle to edit a point. Double-click the path to add one; double-click a point to switch corner ↔ curve. Alt-drag a curve handle to break its symmetry.</p>
       )}
       <div className="btn-row">
-        <button type="button" className="btn" onClick={() => setAll('smooth')}>
-          Smooth all
+        <button type="button" className="btn" onClick={() => setAll('smooth')} title="Round every point, keeping them all">
+          Curve through points
         </button>
-        <button type="button" className="btn" onClick={() => setAll('corner')}>
-          All corners
+        <button type="button" className="btn" onClick={() => setAll('corner')} title="Make every point a sharp corner">
+          Sharp corners
         </button>
         {f.kind === 'taxiway' && (
           <button type="button" className="btn" onClick={() => update((x) => ({ ...x, nodes: reverseNodes(x.nodes) }))}>
@@ -460,12 +474,23 @@ const TAXI_WIDTHS = [25, 35, 50, 75];
 
 function TaxiwayEditor({ t }: { t: Taxiway }) {
   const update = useUpdate(t);
+  const twins = useStore(
+    (s) => s.doc.features.filter((f) => f.kind === 'taxiway' && f.id !== t.id && f.name === t.name && t.name !== '').length,
+  );
   return (
     <>
       <Section title="Taxiway">
         <Row>
-          <Field label="Name" htmlFor="tw-name">
-            <TextInput id="tw-name" value={t.name} upper onChange={(v) => update((x) => ({ ...x, name: v.slice(0, 4) }), 'name')} />
+          <Field
+            label="Name"
+            htmlFor="tw-name"
+            hint={
+              twins > 0
+                ? `${twins} other path${twins === 1 ? ' is' : 's are'} also named ${t.name}; fine if they're pieces of one taxiway.`
+                : 'Or double-click the name on the chart, or press F2.'
+            }
+          >
+            <TextInput id="tw-name" value={t.name} upper onChange={(v) => update((x) => ({ ...x, name: cleanTaxiwayName(v) }), 'name')} />
           </Field>
           <Field label="Width" htmlFor="tw-width">
             <NumberInput id="tw-width" value={t.width} onChange={(v) => v && update((x) => ({ ...x, width: v }), 'w')} min={10} max={200} digits={0} unit="ft" />

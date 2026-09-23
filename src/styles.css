@@ -559,6 +559,42 @@ button:disabled {
   color: var(--ink);
 }
 
+/* Selected-taxiway actions sit where tool options would. */
+.selection-actions {
+  align-items: center;
+}
+
+.sel-name {
+  padding: 0 8px 0 6px;
+  font-family: var(--font-chart);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.rename-box {
+  position: absolute;
+  z-index: 5;
+  transform: translate(-50%, -50%);
+  min-width: 3ch;
+  padding: 3px 6px;
+  border: 2px solid var(--select);
+  border-radius: 5px;
+  background: #fff;
+  color: #111;
+  font: 600 15px/1.2 var(--font-chart);
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-transform: uppercase;
+  box-shadow: 0 0 0 4px var(--select-soft), var(--shadow);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.rename-box:focus {
+  outline: none;
+}
+
 /* ------------------------------------------------------------------ */
 /* Panel                                                               */
 /* ------------------------------------------------------------------ */
@@ -890,6 +926,13 @@ input[type='range'] {
   color: var(--select);
 }
 
+.smooth-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+
 .freqs {
   display: flex;
   flex-direction: column;
@@ -1031,6 +1074,14 @@ input[type='range'] {
   background: transparent;
   text-align: left;
   font-size: 13px;
+}
+
+.layer-rename {
+  flex: 1;
+  margin: 3px 4px;
+  font-family: var(--font-chart);
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .layer-main span {

@@ -18,6 +18,11 @@ Everything runs in the browser. Work is saved automatically to local storage and
 | Symbol | `S` | Control tower, rotating beacon, wind cone, helipad. |
 | Hot spot | `O` | Drag out a circle; the `HS n` callout can be dragged. |
 
+### Taxiway clean-up
+
+- **Rename**: double-click a taxiway's name on the chart, press `F2` (or `Enter`) with it selected, use **Rename** in the bar that appears over the canvas, or double-click it in **Layers**. Names are upper case letters and digits, up to 8 characters.
+- **Auto-smooth**: keeps the first and last points and redraws the smoothest curve between them. The result is a straight line when the path never strays far from one (brief wobbles don't count), otherwise a single curve. If one curve can't follow the route, like a parallel taxiway that steps away from its runway and back, it uses the fewest curves joined without corners. Taxiways whose ends were attached to it slide along with it, hold-short lines update, and `Ctrl+Z` undoes it.
+
 `Ctrl+Z` / `Ctrl+Shift+Z` undo and redo, `Ctrl+D` duplicates, arrow keys nudge 10 ft (`Shift`: 100 ft), `?` lists every shortcut.
 
 ## What's computed for you
@@ -53,7 +58,7 @@ Symbology follows the FAA airport diagram legend and the marking dimensions foll
 ```sh
 npm install
 npm run dev        # http://localhost:5173
-npm test           # geometry, designators, hold-short placement
+npm test           # geometry, designators, hold-short placement, auto-smooth
 npm run build      # typecheck + production build into dist/
 ```
 
@@ -61,8 +66,8 @@ Stack: Vite, React, TypeScript, Zustand, and plain SVG.
 
 ```
 src/
-  model/    data model, geometry (bezier, flattening, snapping math),
-            runway designators, hold-short detection, sheet layout, sample airport
+  model/    data model, geometry (bezier, flattening, curve fitting),
+            runway designators, hold-short detection, auto-smooth, sheet layout, sample airport
   render/   ChartLayer (FAA style), SurfaceLayer (markings), Sheet (full chart page)
   editor/   canvas, pan/zoom, tools (runway, pen, rectangle...), snapping, overlays
   store/    document, selection, undo history, autosave

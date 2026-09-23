@@ -138,12 +138,26 @@ export function bezierPoint(s: Segment, t: number): Vec {
   };
 }
 
-export function bezierTangent(s: Segment, t: number): Vec {
+/** B'(t), not normalized. */
+export function bezierDerivative(s: Segment, t: number): Vec {
   const u = 1 - t;
-  const d = {
+  return {
     x: 3 * u * u * (s.c1.x - s.p0.x) + 6 * u * t * (s.c2.x - s.c1.x) + 3 * t * t * (s.p3.x - s.c2.x),
     y: 3 * u * u * (s.c1.y - s.p0.y) + 6 * u * t * (s.c2.y - s.c1.y) + 3 * t * t * (s.p3.y - s.c2.y),
   };
+}
+
+/** B''(t). */
+export function bezierSecondDerivative(s: Segment, t: number): Vec {
+  const u = 1 - t;
+  return {
+    x: 6 * u * (s.c2.x - 2 * s.c1.x + s.p0.x) + 6 * t * (s.p3.x - 2 * s.c2.x + s.c1.x),
+    y: 6 * u * (s.c2.y - 2 * s.c1.y + s.p0.y) + 6 * t * (s.p3.y - 2 * s.c2.y + s.c1.y),
+  };
+}
+
+export function bezierTangent(s: Segment, t: number): Vec {
+  const d = bezierDerivative(s, t);
   // Degenerate handles give a zero derivative at the ends; fall back to the chord.
   return len(d) < 1e-9 ? norm(sub(s.p3, s.p0)) : norm(d);
 }
@@ -268,6 +282,141 @@ export function pointAtLength(poly: Polyline, s: number): { point: Vec; tangent:
   const span = poly.cum[i + 1] - poly.cum[i];
   const k = span < 1e-9 ? 0 : (target - poly.cum[i]) / span;
   return { point: lerp(pts[i], pts[i + 1], k), tangent: norm(sub(pts[i + 1], pts[i])) };
+}
+
+/** `n` points evenly spaced by arc length, both ends included. */
+export function resample(poly: Polyline, n: number): Vec[] {
+  return Array.from({ length: n }, (_, i) => pointAtLength(poly, (poly.length * i) / (n - 1)).point);
+}
+
+/* ------------------------------------------------------------------ */
+/* Curve fitting                                                       */
+/* ------------------------------------------------------------------ */
+
+function chordParams(pts: Vec[]): number[] {
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + dist(pts[i - 1], pts[i]));
+  const total = cum[cum.length - 1] || 1;
+  return cum.map((c) => c / total);
+}
+
+/** Control points minimizing squared distance to `pts` at parameters `ts`, ends fixed. */
+function solveControls(pts: Vec[], ts: number[], p0: Vec, p3: Vec): Segment {
+  let a11 = 0;
+  let a12 = 0;
+  let a22 = 0;
+  const r1 = { x: 0, y: 0 };
+  const r2 = { x: 0, y: 0 };
+  pts.forEach((p, i) => {
+    const t = ts[i];
+    const u = 1 - t;
+    const b0 = u * u * u;
+    const b1 = 3 * u * u * t;
+    const b2 = 3 * u * t * t;
+    const b3 = t * t * t;
+    const rx = p.x - b0 * p0.x - b3 * p3.x;
+    const ry = p.y - b0 * p0.y - b3 * p3.y;
+    a11 += b1 * b1;
+    a12 += b1 * b2;
+    a22 += b2 * b2;
+    r1.x += b1 * rx;
+    r1.y += b1 * ry;
+    r2.x += b2 * rx;
+    r2.y += b2 * ry;
+  });
+  const det = a11 * a22 - a12 * a12;
+  if (Math.abs(det) < 1e-12) {
+    return { p0, c1: lerp(p0, p3, 1 / 3), c2: lerp(p0, p3, 2 / 3), p3 };
+  }
+  return {
+    p0,
+    c1: { x: (a22 * r1.x - a12 * r2.x) / det, y: (a22 * r1.y - a12 * r2.y) / det },
+    c2: { x: (a11 * r2.x - a12 * r1.x) / det, y: (a11 * r2.y - a12 * r1.y) / det },
+    p3,
+  };
+}
+
+/** Control points along fixed end tangents, solving only for handle lengths (Schneider 1990). */
+function solveWithTangents(pts: Vec[], ts: number[], p0: Vec, p3: Vec, t1: Vec, t2: Vec): Segment {
+  let c00 = 0;
+  let c01 = 0;
+  let c11 = 0;
+  let x0 = 0;
+  let x1 = 0;
+  pts.forEach((p, i) => {
+    const t = ts[i];
+    const u = 1 - t;
+    const b0 = u * u * u;
+    const b1 = 3 * u * u * t;
+    const b2 = 3 * u * t * t;
+    const b3 = t * t * t;
+    const a1 = mul(t1, b1);
+    const a2 = mul(t2, b2);
+    c00 += dot(a1, a1);
+    c01 += dot(a1, a2);
+    c11 += dot(a2, a2);
+    const rest = sub(p, add(mul(p0, b0 + b1), mul(p3, b2 + b3)));
+    x0 += dot(a1, rest);
+    x1 += dot(a2, rest);
+  });
+  const det = c00 * c11 - c01 * c01;
+  const chord = dist(p0, p3);
+  let alpha1 = Math.abs(det) > 1e-12 ? (x0 * c11 - x1 * c01) / det : 0;
+  let alpha2 = Math.abs(det) > 1e-12 ? (c00 * x1 - c01 * x0) / det : 0;
+  // Degenerate or backwards handles: fall back to the usual third-of-chord handles.
+  if (!(alpha1 > chord * 1e-6) || !(alpha2 > chord * 1e-6)) alpha1 = alpha2 = chord / 3;
+  return { p0, c1: add(p0, mul(t1, alpha1)), c2: add(p3, mul(t2, alpha2)), p3 };
+}
+
+/** One Newton step toward the parameter of the point on `s` closest to `p`. */
+function refineParam(s: Segment, p: Vec, t: number): number {
+  const diff = sub(bezierPoint(s, t), p);
+  const d1 = bezierDerivative(s, t);
+  const d2 = bezierSecondDerivative(s, t);
+  const denom = dot(d1, d1) + dot(diff, d2);
+  if (Math.abs(denom) < 1e-12) return t;
+  return Math.max(0, Math.min(1, t - dot(diff, d1) / denom));
+}
+
+export interface CubicFit {
+  seg: Segment;
+  /** Largest distance from any input point to the curve. */
+  error: number;
+  /** Index of the point with that error; the natural place to split. */
+  worst: number;
+}
+
+/**
+ * The single cubic bezier that best follows `pts` in the least-squares sense,
+ * keeping the first and last points fixed. With `tangents` the handles are held
+ * to those directions (start: into the curve, end: back into it), otherwise the
+ * control points are free. Parameters start from chord length and are refined
+ * by Newton steps, as in Schneider's curve fitting (Graphics Gems, 1990).
+ */
+export function fitCubic(pts: Vec[], tangents?: { start: Vec; end: Vec }, iterations = 16): CubicFit {
+  const p0 = pts[0];
+  const p3 = pts[pts.length - 1];
+  const solve = (ts: number[]) =>
+    tangents ? solveWithTangents(pts, ts, p0, p3, tangents.start, tangents.end) : solveControls(pts, ts, p0, p3);
+  const refine = (seg: Segment, ts: number[]) =>
+    ts.map((t, i) => (i === 0 || i === pts.length - 1 ? t : refineParam(seg, pts[i], t)));
+  let ts = chordParams(pts);
+  let seg = solve(ts);
+  for (let k = 0; k < iterations; k++) {
+    ts = refine(seg, ts);
+    seg = solve(ts);
+  }
+  ts = refine(seg, ts);
+  let error = 0;
+  let worst = 0;
+  pts.forEach((p, i) => {
+    const e = dist(bezierPoint(seg, ts[i]), p);
+    if (e > error) {
+      error = e;
+      worst = i;
+    }
+  });
+  return { seg, error, worst };
 }
 
 /* ------------------------------------------------------------------ */

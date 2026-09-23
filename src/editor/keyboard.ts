@@ -3,7 +3,7 @@ import { translateFeature } from '../model/featureOps';
 import { useStore, type ToolId } from '../store/store';
 import { isTyping } from './Canvas';
 import { useDraft } from './draftStore';
-import { escapeDraft, finishPath, popPathNode } from './tools';
+import { escapeDraft, finishPath, popPathNode, renameSelection } from './tools';
 
 export const TOOL_KEYS: Record<string, ToolId> = {
   v: 'select',
@@ -74,8 +74,10 @@ export function useKeyboard(): void {
         if (s.tool !== 'select') s.setTool('select');
         return;
       }
-      if (e.key === 'Enter') {
-        finishPath();
+      if (e.key === 'F2' || (e.key === 'Enter' && (e.target as HTMLElement)?.tagName !== 'BUTTON')) {
+        e.preventDefault();
+        if (useDraft.getState().draft?.type === 'path') finishPath();
+        else if (s.mode === 'edit') renameSelection();
         return;
       }
       if (e.key === 'Backspace' || e.key === 'Delete') {

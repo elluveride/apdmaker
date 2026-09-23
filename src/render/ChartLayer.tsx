@@ -41,8 +41,10 @@ export function ChartText(props: {
   fill?: string;
   children: ReactNode;
   id?: string;
+  /** Marks special text, e.g. "name" for taxiway designators that can be renamed in place. */
+  role?: string;
 }) {
-  const { at, size, rot = 0, anchor = 'middle', weight = 500, fill = CHART.ink, children, id } = props;
+  const { at, size, rot = 0, anchor = 'middle', weight = 500, fill = CHART.ink, children, id, role } = props;
   return (
     <text
       transform={`translate(${f(at.x)} ${f(at.y)})${rot ? ` rotate(${f(rot)})` : ''}`}
@@ -52,6 +54,7 @@ export function ChartText(props: {
       fontWeight={weight}
       fill={fill}
       data-id={id}
+      data-role={role}
     >
       {children}
     </text>
@@ -169,7 +172,7 @@ export function ChartLayer({ doc, derived }: Props) {
           if (!poly) return null;
           const { point } = pointAtLength(poly, poly.length * t.labelT);
           return (
-            <ChartText key={t.id} id={t.id} at={point} size={PT.taxiway * ts} weight={600}>
+            <ChartText key={t.id} id={t.id} role="name" at={point} size={PT.taxiway * ts} weight={600}>
               {t.name}
             </ChartText>
           );

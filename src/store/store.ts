@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { emptyDoc, nextTaxiwayName, uid } from '../model/defaults';
 import { sampleDoc } from '../model/sample';
+import { autoSmoothTaxiway, cleanTaxiwayName } from '../model/smooth';
 import type { AirportDoc, AirportMeta, Feature, ID, SymbolType } from '../model/types';
 
 export type ToolId =
@@ -75,6 +76,8 @@ interface State {
   duplicateFeature: (id: ID) => void;
   reorder: (id: ID, dir: 1 | -1) => void;
   patchMeta: (patch: Partial<AirportMeta>, key?: string) => void;
+  renameTaxiway: (id: ID, name: string) => void;
+  autoSmooth: (id: ID) => void;
 
   select: (id: ID | null, node?: number | null) => void;
   setTool: (tool: ToolId) => void;
@@ -255,6 +258,36 @@ export const useStore = create<State>((set, get) => ({
     }),
 
   patchMeta: (patch, key) => get().commit((d) => ({ ...d, meta: { ...d.meta, ...patch } }), key),
+
+  renameTaxiway: (id, raw) => {
+    const name = cleanTaxiwayName(raw).trim();
+    const t = get().doc.features.find((f) => f.id === id);
+    if (!name || t?.kind !== 'taxiway' || (t.name === name && t.showLabel)) return;
+    get().updateFeature(id, (f) => ({ ...f, name, showLabel: true }) as Feature);
+  },
+
+  autoSmooth: (id) => {
+    const res = autoSmoothTaxiway(get().doc, id);
+    const before = get().doc.features.find((f) => f.id === id);
+    if (!res || before?.kind !== 'taxiway') return;
+    const label = `Taxiway ${before.name || '—'}`;
+    if (JSON.stringify(before.nodes) === JSON.stringify(res.nodes)) {
+      get().showToast(`${label} is already as smooth as it gets.`);
+      return;
+    }
+    get().commit(() => res.doc);
+    set({ selection: { id, node: null } });
+    const within = `within ${Math.round(res.deviation)} ft of the old path`;
+    const shape = res.straight
+      ? 'a straight line'
+      : res.pieces === 1
+        ? `one smooth curve, ${within}`
+        : `${res.pieces} curves joined without corners, ${within} (one curve would have strayed ${Math.round(res.singleCurveError ?? 0)} ft)`;
+    const moved = res.reattached
+      ? ` ${res.reattached} connected taxiway end${res.reattached === 1 ? '' : 's'} moved with it.`
+      : '';
+    get().showToast(`${label}: ${res.before} points → ${shape}.${moved} Ctrl+Z undoes it.`);
+  },
 
   select: (id, node = null) => set({ selection: { id, node } }),
   setTool: (tool) => set({ tool }),

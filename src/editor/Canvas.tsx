@@ -9,6 +9,7 @@ import { useStore } from '../store/store';
 import { cameraTransform, fitCamera, niceLength, screenToWorld, worldToScreen, zoomAt, type Size } from './camera';
 import { useDraft } from './draftStore';
 import { DraftOverlay, SelectionOverlay } from './Overlay';
+import { RenameBox } from './RenameBox';
 import { gridStep } from './snapping';
 import { cancelGesture, doubleClick, pointerDown, pointerMove, pointerUp, type PointerCtx } from './tools';
 
@@ -236,6 +237,7 @@ export function EditorCanvas({ interactive = true }: { interactive?: boolean }) 
           {interactive && <ReadoutLayer size={size} />}
         </svg>
       )}
+      {interactive && size.w > 0 && <RenameBox size={size} />}
     </div>
   );
 }

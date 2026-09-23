@@ -1,6 +1,7 @@
 import { EditorCanvas } from './editor/Canvas';
 import { useDraft } from './editor/draftStore';
 import { useKeyboard } from './editor/keyboard';
+import { SelectionActions } from './editor/SelectionActions';
 import { useStore, type PanelTab } from './store/store';
 import { AirportPanel } from './ui/AirportPanel';
 import { Inspector } from './ui/Inspector';
@@ -87,6 +88,7 @@ export function App() {
               <div className="stage">
                 <EditorCanvas />
                 <ToolOptions />
+                <SelectionActions />
                 <EmptyField />
               </div>
               {panelOpen && <Panel />}

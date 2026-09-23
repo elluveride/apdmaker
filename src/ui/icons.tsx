@@ -86,6 +86,15 @@ export const HotspotIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const SmoothIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 18 C 10 18, 14 6, 20 6" />
+    <path d="M4 18 L 9 12 L 12 14 L 16 8 L 20 6" strokeOpacity={0.35} strokeDasharray="1.5 2" />
+    <circle cx={4} cy={18} r={1.6} fill="currentColor" stroke="none" />
+    <circle cx={20} cy={6} r={1.6} fill="currentColor" stroke="none" />
+  </Icon>
+);
+
 export const UndoIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M9 14 L4 9 L9 4" />
