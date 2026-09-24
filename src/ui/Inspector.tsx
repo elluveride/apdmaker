@@ -3,7 +3,8 @@ import { add, cornerNode, dirFromBearing, leftOf, mid, mul, reverseNodes, rightO
 import { derive } from '../model/derive';
 import { newRunway, SYMBOL_NAMES } from '../model/defaults';
 import { featureTitle, rotateFeature } from '../model/featureOps';
-import { cleanTaxiwayName, type TurnStyle } from '../model/smooth';
+import { runwayInfos, runwayTitle } from '../model/runway';
+import { cleanTaxiwayName, MAX_EXIT_ANGLE, MIN_EXIT_ANGLE, runwayExits, type TurnStyle } from '../model/smooth';
 import {
   defaultHoldDistance,
   formatBearing,
@@ -357,6 +358,51 @@ function Stat({ label, value }: { label: string; value: string }) {
 /* Paths                                                               */
 /* ------------------------------------------------------------------ */
 
+/** How a taxiway leaves the runway it starts or ends on: the angle now, and presets or any angle to set it to. */
+function ExitAngleField({ t }: { t: Taxiway }) {
+  const doc = useStore((s) => s.doc);
+  const setExitAngle = useStore((s) => s.setExitAngle);
+  const exits = runwayExits(doc, t);
+  if (!exits.length) return null;
+  const infos = runwayInfos(doc);
+  const now = exits.map((e) => `${runwayTitle(infos.get(e.runway.id))} at ${Math.round(e.angle)}°`).join(' and ');
+  const id = `exit-${t.id}`;
+  return (
+    <Field
+      label="Runway exit"
+      htmlFor={id}
+      hint={`Leaves ${now}. Picking an angle smooths the taxiway to it; type any angle from ${MIN_EXIT_ANGLE}° to ${MAX_EXIT_ANGLE}° in the box.`}
+    >
+      <div className="exit-angle">
+        <Segmented<'drawn' | number>
+          size="sm"
+          value={t.exitAngle ?? 'drawn'}
+          options={[
+            { value: 'drawn', label: 'As drawn', title: 'Keep the angle you drew' },
+            { value: 30, label: '30°', title: 'High-speed exit' },
+            { value: 45, label: '45°', title: 'Widest acute-angled exit the FAA recommends' },
+            { value: 90, label: '90°', title: 'Right angle, the FAA standard' },
+          ]}
+          onChange={(v) => setExitAngle(t.id, v === 'drawn' ? undefined : v)}
+          label="Runway exit angle"
+        />
+        <NumberInput
+          id={id}
+          value={t.exitAngle}
+          onChange={(v) => setExitAngle(t.id, v)}
+          min={MIN_EXIT_ANGLE}
+          max={MAX_EXIT_ANGLE}
+          digits={0}
+          unit="°"
+          placeholder={String(Math.round(exits[0].angle))}
+          allowEmpty
+          lazy
+        />
+      </div>
+    </Field>
+  );
+}
+
 function NodeTools({ f, closed }: { f: Taxiway | Area; closed: boolean }) {
   const node = useStore((s) => s.selection.node);
   const autoSmooth = useStore((s) => s.autoSmooth);
@@ -388,6 +434,7 @@ function NodeTools({ f, closed }: { f: Taxiway | Area; closed: boolean }) {
               label="Turn style"
             />
           </Field>
+          <ExitAngleField t={f} />
           <p className="field-hint">
             Keeps the first and last points, removes wobble and rebuilds the taxiway as straight legs joined by clean
             circular turns. The angles you drew stay; a connection is only squared to a runway or taxiway when it is

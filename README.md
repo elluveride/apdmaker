@@ -25,6 +25,8 @@ Everything runs in the browser. Work is saved automatically to local storage and
   - *As drawn* keeps the radius of each curve you drew, so a wide sweeping turn stays wide. It never goes tighter than the FAA minimum.
   - *Tight* uses the minimum centerline radius the FAA tabulates for that width and turn angle (AC 150/5300-13A tables 4-4 to 4-10; e.g. 95 ft for a 90° turn on a 75 ft taxiway).
 
+  **Runway exit** appears when a taxiway starts or ends on a runway. It shows the angle the taxiway leaves the runway at and sets it to *As drawn*, 30° (a high-speed exit), 45° (the widest acute-angled exit AC 150/5300-13A recommends), 90° (the standard), or any angle from 15° to 90°. Picking an angle smooths the taxiway to it. The turn after the exit slides along the next leg, or a straight connector slides along the runway. An exit drawn square leans the way the taxiway carries on. The taxiway remembers its angle, so smoothing it again keeps it.
+
   Taxiways whose ends were attached to it slide along with it, hold-short lines update, smoothing twice changes nothing, and `Ctrl+Z` undoes it.
 
 `Ctrl+Z` / `Ctrl+Shift+Z` undo and redo, `Ctrl+D` duplicates, arrow keys nudge 10 ft (`Shift`: 100 ft), `?` lists every shortcut.

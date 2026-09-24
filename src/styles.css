@@ -933,6 +933,21 @@ input[type='range'] {
   padding-bottom: 4px;
 }
 
+.exit-angle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.exit-angle .num {
+  width: 64px;
+}
+
+.exit-angle .num input {
+  padding-right: 20px;
+}
+
 .freqs {
   display: flex;
   flex-direction: column;

@@ -55,6 +55,8 @@ export function turnRadius(width: number, turn: number): number {
 export interface Anchor {
   axis: Vec;
   runway: boolean;
+  /** The runway's two ends, which a taxiway end may slide between. */
+  span?: [Vec, Vec];
 }
 
 /* ------------------------------------------------------------------ */
@@ -110,20 +112,33 @@ const SQUARE_WITHIN = 8;
 /** Within this of 30 degrees, a runway exit was meant to be a 30 degree exit. */
 const EXIT_WITHIN = 5;
 
+/** Exit angles a runway exit can be set to, degrees from the runway centerline. */
+export const MIN_EXIT_ANGLE = 15;
+export const MAX_EXIT_ANGLE = 90;
+
+export const clampExitAngle = (deg: number): number => Math.min(MAX_EXIT_ANGLE, Math.max(MIN_EXIT_ANGLE, deg));
+
+/** The acute angle between a direction and a centerline, 0 to 90 degrees. */
+export const angleToAxis = (d: Vec, axis: Vec): number => {
+  const a = angleBetween(d, axis);
+  return a > 90 ? 180 - a : a;
+};
+
 /**
  * Point the leg straight into what it connects to, but only when it was
  * clearly meant to be: square when within a few degrees of square, exactly 30
  * degrees for a runway exit drawn within a few degrees of that. Any other
- * angle is deliberate and stays. Returns null to leave it.
+ * angle is deliberate and stays. A runway exit given its own angle always
+ * gets it, leaning the way it was drawn. Returns null to leave it.
  */
-function squareTo(d: Vec, anchor: Anchor): Vec | null {
+function squareTo(d: Vec, anchor: Anchor, exitAngle?: number): Vec | null {
   const axis = dot(d, anchor.axis) >= 0 ? anchor.axis : mul(anchor.axis, -1);
   const side = dot(d, leftOf(axis)) >= 0 ? leftOf(axis) : rightOf(axis);
+  const toward = (deg: number) => norm(add(mul(axis, Math.cos(rad(deg))), mul(side, Math.sin(rad(deg)))));
+  if (anchor.runway && exitAngle !== undefined) return toward(clampExitAngle(exitAngle));
   const angle = angleBetween(d, axis);
   if (angle >= 90 - SQUARE_WITHIN) return side;
-  if (anchor.runway && Math.abs(angle - 30) <= EXIT_WITHIN) {
-    return norm(add(mul(axis, Math.cos(rad(30))), mul(side, Math.sin(rad(30)))));
-  }
+  if (anchor.runway && Math.abs(angle - 30) <= EXIT_WITHIN) return toward(30);
   return null;
 }
 
@@ -217,27 +232,80 @@ function routeCorners(pts: Vec[], width: number, startDir: Vec, endDir: Vec, cli
   return corners;
 }
 
-/** Square the first and last legs to the runway or taxiway they meet, where they nearly are already. */
-function squareEnds(corners: Corner[], width: number, anchors: { start?: Anchor; end?: Anchor }): number {
-  if (corners.length < 3) return 0;
-  let squared = 0;
-  const trySquare = (end: number, corner: number, beyond: number, anchor?: Anchor) => {
+/** Where a leg arriving at `at` in direction `d` leaves the runway, if that point is on the runway. */
+function slideOnto(span: [Vec, Vec], at: Vec, d: Vec, width: number): Vec | null {
+  const hit = lineIntersection({ p: at, d }, lineThrough(span[0], span[1]));
+  if (!hit || dot(sub(at, hit), d) <= width) return null;
+  const along = dot(sub(hit, span[0]), norm(sub(span[1], span[0])));
+  return along >= 0 && along <= dist(span[0], span[1]) ? hit : null;
+}
+
+/**
+ * Which way a runway exit may lean at its new angle: the way it was drawn, or,
+ * when it was drawn square and could go either way, the way the taxiway carries
+ * on first and then the other.
+ */
+function exitLeans(drawn: Vec, axis: Vec, onward: Vec): Vec[] {
+  if (angleToAxis(drawn, axis) < 90 - SQUARE_WITHIN) return [drawn];
+  const side = norm(sub(drawn, mul(axis, dot(drawn, axis))));
+  const first = dot(onward, axis) >= 0 ? 1 : -1;
+  return [first, -first].map((sign) => norm(add(side, mul(axis, sign * 0.1))));
+}
+
+interface EndFixes {
+  /** Ends squared up because they nearly were already. */
+  squared: number;
+  /** Runway exits given their chosen angle. */
+  exits: number;
+}
+
+/**
+ * Square the first and last legs to the runway or taxiway they meet where they
+ * nearly are already, and give runway exits their chosen angle. The corner
+ * after the end slides along the next leg; when there is no corner (a straight
+ * connector) or it can't slide that far, a runway exit's end slides along the
+ * runway instead.
+ */
+function squareEnds(corners: Corner[], width: number, anchors: { start?: Anchor; end?: Anchor }, exitAngle?: number): EndFixes {
+  const fixes: EndFixes = { squared: 0, exits: 0 };
+  const fixEnd = (first: boolean, anchor?: Anchor) => {
     if (!anchor) return;
+    const n = corners.length;
+    const [end, corner, beyond] = first ? [0, 1, 2] : [n - 1, n - 2, n - 3];
     const from = corners[end].p;
     const at = corners[corner].p;
-    const d = squareTo(norm(sub(at, from)), anchor);
-    if (!d) return;
-    const moved = lineIntersection({ p: from, d }, lineThrough(at, corners[beyond].p));
-    const reach = dist(at, corners[beyond].p) + dist(from, at);
-    if (moved && dot(sub(moved, from), d) > width && dist(moved, at) <= reach) {
-      corners[corner] = { ...corners[corner], p: moved };
-      squared++;
+    const drawn = norm(sub(at, from));
+    const setAngle = anchor.runway && exitAngle !== undefined;
+    const leans = setAngle ? exitLeans(drawn, anchor.axis, n >= 3 ? sub(corners[beyond].p, at) : drawn) : [drawn];
+    for (const lean of leans) {
+      const d = squareTo(lean, anchor, exitAngle);
+      if (!d) return;
+      if (n >= 3) {
+        const next = corners[beyond].p;
+        const moved = lineIntersection({ p: from, d }, lineThrough(at, next));
+        const reach = dist(at, next) + dist(from, at);
+        if (moved && dot(sub(moved, from), d) > width && dist(moved, at) <= reach && dot(sub(next, moved), sub(next, at)) > 0) {
+          corners[corner] = { ...corners[corner], p: moved };
+          if (setAngle) fixes.exits++;
+          else fixes.squared++;
+          return;
+        }
+      }
+      const slid = setAngle && anchor.span ? slideOnto(anchor.span, at, d, width) : null;
+      if (slid) {
+        corners[end] = { ...corners[end], p: slid };
+        fixes.exits++;
+        return;
+      }
     }
   };
-  const n = corners.length;
-  trySquare(0, 1, 2, anchors.start);
-  trySquare(n - 1, n - 2, n - 3, anchors.end);
-  return squared;
+  fixEnd(true, anchors.start);
+  fixEnd(false, anchors.end);
+  // A corner the new angle straightened out is no longer a corner.
+  for (let i = corners.length - 2; i >= 1; i--) {
+    if (angleBetween(sub(corners[i].p, corners[i - 1].p), sub(corners[i + 1].p, corners[i].p)) < 1) corners.splice(i, 1);
+  }
+  return fixes;
 }
 
 /* ------------------------------------------------------------------ */
@@ -335,6 +403,8 @@ export interface SmoothResult {
   radii: number[];
   /** Ends straightened to meet a runway or taxiway square (or at 30 degrees for an exit). */
   squared: number;
+  /** Runway exits given the taxiway's chosen exit angle. */
+  exits: number;
   /** Farthest the old path strays from the new one, ft. */
   deviation: number;
 }
@@ -356,10 +426,16 @@ function pathDistance(a: PathNode[], b: PathNode[]): number {
 export interface SmoothOptions {
   anchors?: { start?: Anchor; end?: Anchor };
   turns?: TurnStyle;
+  /** Angle from the runway centerline for ends on a runway; unset keeps the drawn angle. */
+  exitAngle?: number;
 }
 
-export function autoSmooth(nodes: PathNode[], width: number, { anchors = {}, turns = 'drawn' }: SmoothOptions = {}): SmoothResult {
-  const unchanged = { nodes, straight: nodes.length <= 2, radii: [], squared: 0, deviation: 0 };
+export function autoSmooth(
+  nodes: PathNode[],
+  width: number,
+  { anchors = {}, turns = 'drawn', exitAngle }: SmoothOptions = {},
+): SmoothResult {
+  const unchanged = { nodes, straight: nodes.length <= 2, radii: [], squared: 0, exits: 0, deviation: 0 };
   if (nodes.length < 2) return unchanged;
   const first = nodes[0].p;
   const last = nodes[nodes.length - 1].p;
@@ -369,23 +445,20 @@ export function autoSmooth(nodes: PathNode[], width: number, { anchors = {}, tur
   const bulge = Math.max(0, ...offsets);
   const mean = offsets.reduce((sum, d) => sum + d, 0) / offsets.length;
 
-  let result: SmoothResult;
-  if (isNearlyStraight(bulge, mean, straightTolerance(dist(first, last), width))) {
-    result = { nodes: [{ p: first }, { p: last }], straight: true, radii: [], squared: 0, deviation: bulge };
-  } else {
-    const segs = pathSegments(nodes, false);
-    const corners = routeCorners(
-      pts,
-      width,
-      bezierTangent(segs[0], 0),
-      bezierTangent(segs[segs.length - 1], 1),
-      nodes.map((n) => n.p),
-    );
-    const squared = squareEnds(corners, width, anchors);
-    const { nodes: rebuilt, radii } = filletCorners(corners, width, turns);
-    result = { nodes: rebuilt, straight: corners.length === 2, radii, squared, deviation: 0 };
-    result.deviation = pathDistance(nodes, rebuilt);
-  }
+  const segs = pathSegments(nodes, false);
+  const corners = isNearlyStraight(bulge, mean, straightTolerance(dist(first, last), width))
+    ? [sharp(first), sharp(last)]
+    : routeCorners(pts, width, bezierTangent(segs[0], 0), bezierTangent(segs[segs.length - 1], 1), nodes.map((n) => n.p));
+  const { squared, exits } = squareEnds(corners, width, anchors, exitAngle);
+  const { nodes: rebuilt, radii } = filletCorners(corners, width, turns);
+  const result: SmoothResult = {
+    nodes: rebuilt,
+    straight: corners.length === 2,
+    radii,
+    squared,
+    exits,
+    deviation: pathDistance(nodes, rebuilt),
+  };
   // Smoothing a taxiway that is already smooth leaves it exactly as it is.
   if (pathDistance(result.nodes, nodes) < 3 && pathDistance(nodes, result.nodes) < 3) return unchanged;
   return result;
@@ -398,7 +471,7 @@ const ATTACH_TOLERANCE = 2;
 function anchorAt(doc: AirportDoc, self: ID, p: Vec): Anchor | undefined {
   for (const f of doc.features) {
     if (f.kind === 'runway' && !f.hidden && distToSegment(p, f.a, f.b) <= ATTACH_TOLERANCE + 1) {
-      return { axis: norm(sub((f as Runway).b, (f as Runway).a)), runway: true };
+      return { axis: norm(sub(f.b, f.a)), runway: true, span: [f.a, f.b] };
     }
   }
   for (const f of doc.features) {
@@ -411,6 +484,30 @@ function anchorAt(doc: AirportDoc, self: ID, p: Vec): Anchor | undefined {
     }
   }
   return undefined;
+}
+
+/** A taxiway end on a runway, and the angle it leaves the runway centerline at. */
+export interface RunwayExit {
+  runway: Runway;
+  angle: number;
+}
+
+/** The ends of a taxiway that sit on a runway, with the angle each meets it at. */
+export function runwayExits(doc: AirportDoc, t: Taxiway): RunwayExit[] {
+  if (t.closed || t.nodes.length < 2) return [];
+  const segs = pathSegments(t.nodes, false);
+  const ends = [
+    { p: t.nodes[0].p, d: bezierTangent(segs[0], 0) },
+    { p: t.nodes[t.nodes.length - 1].p, d: bezierTangent(segs[segs.length - 1], 1) },
+  ];
+  const exits: RunwayExit[] = [];
+  for (const end of ends) {
+    const runway = doc.features.find(
+      (f): f is Runway => f.kind === 'runway' && !f.hidden && distToSegment(end.p, f.a, f.b) <= ATTACH_TOLERANCE + 1,
+    );
+    if (runway) exits.push({ runway, angle: angleToAxis(end.d, sub(runway.b, runway.a)) });
+  }
+  return exits;
 }
 
 export interface SmoothTaxiwayResult extends SmoothResult {
@@ -429,7 +526,7 @@ export function autoSmoothTaxiway(doc: AirportDoc, id: ID, turns: TurnStyle = 'd
     start: anchorAt(doc, t.id, t.nodes[0].p),
     end: anchorAt(doc, t.id, t.nodes[t.nodes.length - 1].p),
   };
-  const result = autoSmooth(t.nodes, t.width, { anchors, turns });
+  const result = autoSmooth(t.nodes, t.width, { anchors, turns, exitAngle: t.exitAngle });
   const oldPoly = flatten(t.nodes, false);
   const newPoly = flatten(result.nodes, false);
   let reattached = 0;

@@ -67,6 +67,8 @@ export interface Taxiway {
   edgeLines: boolean;
   closed: boolean;
   hidden?: boolean;
+  /** Angle from the runway centerline auto-smooth gives an end on a runway, degrees; unset keeps the drawn angle. */
+  exitAngle?: number;
 }
 
 export type AreaType = 'apron' | 'building' | 'unpaved';

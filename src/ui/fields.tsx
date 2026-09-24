@@ -27,8 +27,10 @@ export function NumberInput(props: {
   unit?: string;
   placeholder?: string;
   allowEmpty?: boolean;
+  /** Report only when editing ends (blur or Enter), for values that are costly to apply. */
+  lazy?: boolean;
 }) {
-  const { id, value, onChange, step = 1, min, max, digits = 1, unit, placeholder, allowEmpty } = props;
+  const { id, value, onChange, step = 1, min, max, digits = 1, unit, placeholder, allowEmpty, lazy } = props;
   const [text, setText] = useState(fmt(value, digits));
   const focused = useRef(false);
   useEffect(() => {
@@ -61,11 +63,12 @@ export function NumberInput(props: {
         onFocus={() => (focused.current = true)}
         onBlur={() => {
           focused.current = false;
+          if (lazy && text !== fmt(value, digits)) report(text);
           setText(fmt(value, digits));
         }}
         onChange={(e) => {
           setText(e.target.value);
-          report(e.target.value);
+          if (!lazy) report(e.target.value);
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();

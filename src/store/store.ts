@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { emptyDoc, nextTaxiwayName, uid } from '../model/defaults';
 import { sampleDoc } from '../model/sample';
-import { autoSmoothTaxiway, cleanTaxiwayName, type TurnStyle } from '../model/smooth';
-import type { AirportDoc, AirportMeta, Feature, ID, SymbolType } from '../model/types';
+import { autoSmoothTaxiway, clampExitAngle, cleanTaxiwayName, runwayExits, type TurnStyle } from '../model/smooth';
+import type { AirportDoc, AirportMeta, Feature, ID, SymbolType, Taxiway } from '../model/types';
 
 export type ToolId =
   | 'select'
@@ -80,6 +80,8 @@ interface State {
   patchMeta: (patch: Partial<AirportMeta>, key?: string) => void;
   renameTaxiway: (id: ID, name: string) => void;
   autoSmooth: (id: ID) => void;
+  /** Set the angle a taxiway leaves the runway at and smooth it to that angle; undefined keeps the drawn angle. */
+  setExitAngle: (id: ID, angle: number | undefined) => void;
   setSmoothTurns: (turns: TurnStyle) => void;
 
   select: (id: ID | null, node?: number | null) => void;
@@ -146,6 +148,44 @@ function initialDoc(): AirportDoc {
 }
 
 const pushPast = (past: AirportDoc[], doc: AirportDoc) => [...past, doc].slice(-HISTORY_LIMIT);
+
+/** Auto-smooth a taxiway in `doc` (the current document, or one with a setting just changed) and report what happened. */
+function smoothTaxiway(get: () => State, doc: AirportDoc, id: ID) {
+  const res = autoSmoothTaxiway(doc, id, get().smoothTurns);
+  const before = doc.features.find((f) => f.id === id);
+  if (!res || before?.kind !== 'taxiway') return;
+  const label = `Taxiway ${before.name || '—'}`;
+  const after = res.doc.features.find((f): f is Taxiway => f.id === id && f.kind === 'taxiway')!;
+  const angle = before.exitAngle;
+  const missed = angle !== undefined && runwayExits(res.doc, after).some((e) => Math.abs(e.angle - angle) > 1);
+  const exit =
+    angle === undefined
+      ? ''
+      : missed
+        ? ` Couldn't make it a ${angle}° exit here: the runway or the leg after the exit is too short.`
+        : ` Leaves the runway at ${angle}°.`;
+  if (JSON.stringify(before.nodes) === JSON.stringify(res.nodes)) {
+    if (doc !== get().doc) get().commit(() => doc);
+    get().showToast(angle === undefined ? `${label} is already as smooth as it gets.` : `${label}:${exit}`);
+    return;
+  }
+  get().commit(() => res.doc);
+  get().select(id);
+  // Moving an exit to a new angle moves it on purpose, so how far it moved isn't news.
+  const within = res.exits ? '' : `, within ${Math.round(res.deviation)} ft of the old path`;
+  const turns = res.radii.length;
+  const lo = Math.min(...res.radii);
+  const hi = Math.max(...res.radii);
+  const radius = lo === hi ? `${lo} ft` : `${lo}–${hi} ft`;
+  const shape = res.straight
+    ? 'a straight line'
+    : `${turns + 1} straight legs and ${turns === 1 ? 'a turn' : `${turns} turns`} (${radius} radius)${within}`;
+  const squared = res.squared ? ` ${res.squared === 1 ? 'One end' : 'Both ends'} squared to what ${res.squared === 1 ? 'it meets' : 'they meet'}.` : '';
+  const moved = res.reattached
+    ? ` ${res.reattached} connected taxiway end${res.reattached === 1 ? '' : 's'} moved with it.`
+    : '';
+  get().showToast(`${label}: ${res.before} points → ${shape}.${squared}${exit}${moved} Ctrl+Z undoes it.`);
+}
 
 export const useStore = create<State>((set, get) => ({
   doc: initialDoc(),
@@ -276,30 +316,16 @@ export const useStore = create<State>((set, get) => ({
     set({ smoothTurns });
   },
 
-  autoSmooth: (id) => {
-    const res = autoSmoothTaxiway(get().doc, id, get().smoothTurns);
-    const before = get().doc.features.find((f) => f.id === id);
-    if (!res || before?.kind !== 'taxiway') return;
-    const label = `Taxiway ${before.name || '—'}`;
-    if (JSON.stringify(before.nodes) === JSON.stringify(res.nodes)) {
-      get().showToast(`${label} is already as smooth as it gets.`);
-      return;
-    }
-    get().commit(() => res.doc);
-    set({ selection: { id, node: null } });
-    const within = `within ${Math.round(res.deviation)} ft of the old path`;
-    const turns = res.radii.length;
-    const lo = Math.min(...res.radii);
-    const hi = Math.max(...res.radii);
-    const radius = lo === hi ? `${lo} ft` : `${lo}–${hi} ft`;
-    const shape = res.straight
-      ? 'a straight line'
-      : `${turns + 1} straight legs and ${turns === 1 ? 'a turn' : `${turns} turns`} (${radius} radius), ${within}`;
-    const squared = res.squared ? ` ${res.squared === 1 ? 'One end' : 'Both ends'} squared to what ${res.squared === 1 ? 'it meets' : 'they meet'}.` : '';
-    const moved = res.reattached
-      ? ` ${res.reattached} connected taxiway end${res.reattached === 1 ? '' : 's'} moved with it.`
-      : '';
-    get().showToast(`${label}: ${res.before} points → ${shape}.${squared}${moved} Ctrl+Z undoes it.`);
+  autoSmooth: (id) => smoothTaxiway(get, get().doc, id),
+
+  setExitAngle: (id, angle) => {
+    const doc = get().doc;
+    const t = doc.features.find((f) => f.id === id);
+    if (t?.kind !== 'taxiway') return;
+    const exitAngle = angle === undefined ? undefined : clampExitAngle(Math.round(angle));
+    const next = { ...doc, features: doc.features.map((f) => (f.id === id ? { ...t, exitAngle } : f)) };
+    if (exitAngle !== undefined) smoothTaxiway(get, next, id);
+    else if (t.exitAngle !== undefined) get().commit(() => next);
   },
 
   select: (id, node = null) => set({ selection: { id, node } }),

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { angleBetween, flatten, nearestOnPolyline, pathSegments, isStraight, sub } from '../geometry';
-import { autoSmooth, autoSmoothTaxiway, cleanTaxiwayName, turnRadius, type Anchor } from '../smooth';
+import { angleToAxis, autoSmooth, autoSmoothTaxiway, cleanTaxiwayName, runwayExits, turnRadius, type Anchor } from '../smooth';
 import { emptyDoc, newRunway, newTaxiway } from '../defaults';
 import type { PathNode } from '../types';
 
@@ -160,6 +160,69 @@ describe('autoSmoothTaxiway', () => {
     expect(res.squared).toBe(1);
     const leg = sub(res.nodes[1].p, res.nodes[0].p);
     expect(angleBetween(leg, { x: 0, y: -1 })).toBeLessThan(0.5);
+  });
+
+  it('gives a runway exit the angle chosen for it by sliding its turn along the next leg', () => {
+    const rwy = newRunway({ x: -3000, y: 0 }, { x: 3000, y: 0 });
+    // Leaves the runway at 40 degrees, then turns onto a parallel 400 ft away.
+    const drawn = newTaxiway([P(0, 0), P(477, -400), P(2000, -400)], 'D', 50);
+    expect(runwayExits({ ...emptyDoc(), features: [rwy, drawn] }, drawn)[0].angle).toBeCloseTo(40, 0);
+    for (const exitAngle of [30, 45, 90]) {
+      const t = { ...drawn, exitAngle };
+      const res = autoSmoothTaxiway({ ...emptyDoc(), features: [rwy, t] }, t.id)!;
+      expect(res.exits).toBe(1);
+      expect(res.nodes[0].p).toEqual({ x: 0, y: 0 });
+      expect(res.nodes[res.nodes.length - 1].p).toEqual({ x: 2000, y: -400 });
+      expect(angleToAxis(sub(res.nodes[1].p, res.nodes[0].p), { x: 1, y: 0 })).toBeCloseTo(exitAngle, 1);
+      // Still leaning the way it was drawn, toward +x.
+      expect(res.nodes[1].p.x).toBeGreaterThanOrEqual(-1e-6);
+    }
+  });
+
+  it('slides a straight connector along the runway to give it the chosen angle', () => {
+    const rwy = newRunway({ x: -3000, y: 0 }, { x: 3000, y: 0 });
+    const t = { ...newTaxiway([P(0, 0), P(0, -400)], 'E', 50), exitAngle: 30 };
+    const doc = { ...emptyDoc(), features: [rwy, t] };
+    const res = autoSmoothTaxiway(doc, t.id)!;
+    expect(res.exits).toBe(1);
+    expect(res.nodes).toHaveLength(2);
+    expect(res.nodes[1].p).toEqual({ x: 0, y: -400 });
+    expect(res.nodes[0].p.y).toBeCloseTo(0, 6);
+    expect(Math.abs(res.nodes[0].p.x)).toBeCloseTo(400 / Math.tan(Math.PI / 6), 3);
+    // Setting it again changes nothing.
+    const again = autoSmoothTaxiway(res.doc, t.id)!;
+    expect(again.nodes).toEqual(res.nodes);
+  });
+
+  it('leans a square exit the way the taxiway carries on', () => {
+    const rwy = newRunway({ x: -3000, y: 0 }, { x: 3000, y: 0 });
+    for (const [east, onward] of [[true, 2000], [false, -2000]] as const) {
+      const t = { ...newTaxiway([P(0, 0), P(0, -400), P(onward, -400)], 'G', 50), exitAngle: 30 };
+      const res = autoSmoothTaxiway({ ...emptyDoc(), features: [rwy, t] }, t.id)!;
+      expect(res.exits).toBe(1);
+      expect(res.nodes[0].p).toEqual({ x: 0, y: 0 });
+      expect(res.nodes[1].p.x > 0).toBe(east);
+      expect(angleToAxis(sub(res.nodes[1].p, res.nodes[0].p), { x: 1, y: 0 })).toBeCloseTo(30, 1);
+    }
+  });
+
+  it('leans a square connector the other way when the runway ends too soon', () => {
+    // Either way works for a runway drawn b to a, too.
+    for (const [a, b] of [[-300, 3000], [3000, -300]]) {
+      const rwy = newRunway({ x: a, y: 0 }, { x: b, y: 0 });
+      const t = { ...newTaxiway([P(0, 0), P(0, -400)], 'F', 50), exitAngle: 30 };
+      const res = autoSmoothTaxiway({ ...emptyDoc(), features: [rwy, t] }, t.id)!;
+      expect(res.exits).toBe(1);
+      expect(res.nodes[0].p.x).toBeCloseTo(400 / Math.tan(Math.PI / 6), 3);
+    }
+  });
+
+  it('leaves the exit alone when no lean fits on the runway', () => {
+    const rwy = newRunway({ x: -300, y: 0 }, { x: 300, y: 0 });
+    const t = { ...newTaxiway([P(0, 0), P(0, -400)], 'F', 50), exitAngle: 30 };
+    const res = autoSmoothTaxiway({ ...emptyDoc(), features: [rwy, t] }, t.id)!;
+    expect(res.exits).toBe(0);
+    expect(res.nodes).toBe(t.nodes);
   });
 
   it('leaves taxiways that only pass nearby alone', () => {
