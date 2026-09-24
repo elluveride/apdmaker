@@ -365,7 +365,9 @@ function ExitAngleField({ t }: { t: Taxiway }) {
   const exits = runwayExits(doc, t);
   if (!exits.length) return null;
   const infos = runwayInfos(doc);
-  const now = exits.map((e) => `${runwayTitle(infos.get(e.runway.id))} at ${Math.round(e.angle)}°`).join(' and ');
+  const now = exits
+    .map((e) => `${runwayTitle(infos.get(e.runway.id))} at ${Math.round(e.angle)}°${e.leadOff ? ', curving off its centerline' : ''}`)
+    .join(' and ');
   const id = `exit-${t.id}`;
   return (
     <Field
@@ -379,7 +381,7 @@ function ExitAngleField({ t }: { t: Taxiway }) {
           value={t.exitAngle ?? 'drawn'}
           options={[
             { value: 'drawn', label: 'As drawn', title: 'Keep the angle you drew' },
-            { value: 30, label: '30°', title: 'High-speed exit' },
+            { value: 30, label: '30°', title: 'High-speed exit: curves off the runway centerline on a 1,500 ft radius' },
             { value: 45, label: '45°', title: 'Widest acute-angled exit the FAA recommends' },
             { value: 90, label: '90°', title: 'Right angle, the FAA standard' },
           ]}

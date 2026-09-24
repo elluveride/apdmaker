@@ -27,6 +27,8 @@ Everything runs in the browser. Work is saved automatically to local storage and
 
   **Runway exit** appears when a taxiway starts or ends on a runway. It shows the angle the taxiway leaves the runway at and sets it to *As drawn*, 30° (a high-speed exit), 45° (the widest acute-angled exit AC 150/5300-13A recommends), 90° (the standard), or any angle from 15° to 90°. Picking an angle smooths the taxiway to it. The turn after the exit slides along the next leg, or a straight connector slides along the runway. An exit drawn square leans the way the taxiway carries on. The taxiway remembers its angle, so smoothing it again keeps it.
 
+  A 30° exit is a high-speed exit. It curves off the runway centerline on a 1,500 ft radius, the radius AC 150/5300-13A says such an exit should always have (¶409d(2)). The curve starts 402 ft before the exit's straight line would cross the centerline. A taxiway that already curves off a runway, whether smoothed before or drawn that way, is read by the angle it leaves at once the curve ends.
+
   Taxiways whose ends were attached to it slide along with it, hold-short lines update, smoothing twice changes nothing, and `Ctrl+Z` undoes it.
 
 `Ctrl+Z` / `Ctrl+Shift+Z` undo and redo, `Ctrl+D` duplicates, arrow keys nudge 10 ft (`Shift`: 100 ft), `?` lists every shortcut.

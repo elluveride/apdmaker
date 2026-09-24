@@ -1,7 +1,14 @@
 import { create } from 'zustand';
 import { emptyDoc, nextTaxiwayName, uid } from '../model/defaults';
 import { sampleDoc } from '../model/sample';
-import { autoSmoothTaxiway, clampExitAngle, cleanTaxiwayName, runwayExits, type TurnStyle } from '../model/smooth';
+import {
+  autoSmoothTaxiway,
+  clampExitAngle,
+  cleanTaxiwayName,
+  HIGH_SPEED_RADIUS,
+  runwayExits,
+  type TurnStyle,
+} from '../model/smooth';
 import type { AirportDoc, AirportMeta, Feature, ID, SymbolType, Taxiway } from '../model/types';
 
 export type ToolId =
@@ -181,10 +188,14 @@ function smoothTaxiway(get: () => State, doc: AirportDoc, id: ID) {
     ? 'a straight line'
     : `${turns + 1} straight legs and ${turns === 1 ? 'a turn' : `${turns} turns`} (${radius} radius)${within}`;
   const squared = res.squared ? ` ${res.squared === 1 ? 'One end' : 'Both ends'} squared to what ${res.squared === 1 ? 'it meets' : 'they meet'}.` : '';
+  const fast = res.leadOffs.find((l) => l.highSpeed);
+  const full = HIGH_SPEED_RADIUS.toLocaleString('en-US');
+  const short = fast && fast.radius < HIGH_SPEED_RADIUS - 1 ? `; its exit leg is too short for ${full} ft` : '';
+  const curve = fast ? ` High-speed exit: curves off the runway centerline on a ${fast.radius.toLocaleString('en-US')} ft radius${short}.` : '';
   const moved = res.reattached
     ? ` ${res.reattached} connected taxiway end${res.reattached === 1 ? '' : 's'} moved with it.`
     : '';
-  get().showToast(`${label}: ${res.before} points → ${shape}.${squared}${exit}${moved} Ctrl+Z undoes it.`);
+  get().showToast(`${label}: ${res.before} points → ${shape}.${squared}${exit}${curve}${moved} Ctrl+Z undoes it.`);
 }
 
 export const useStore = create<State>((set, get) => ({

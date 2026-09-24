@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { angleBetween, flatten, nearestOnPolyline, pathSegments, isStraight, sub } from '../geometry';
-import { angleToAxis, autoSmooth, autoSmoothTaxiway, cleanTaxiwayName, runwayExits, turnRadius, type Anchor } from '../smooth';
+import { angleBetween, bezierPoint, bezierTangent, dist, flatten, nearestOnPolyline, pathSegments, isStraight, sub } from '../geometry';
+import { autoSmooth, autoSmoothTaxiway, cleanTaxiwayName, runwayExits, turnRadius, type Anchor } from '../smooth';
 import { emptyDoc, newRunway, newTaxiway } from '../defaults';
-import type { PathNode } from '../types';
+import type { AirportDoc, ID, PathNode, Taxiway } from '../types';
 
 const P = (x: number, y: number): PathNode => ({ p: { x, y } });
 const RUNWAY: Anchor = { axis: { x: 1, y: 0 }, runway: true };
+/** How far before the exit line crosses the runway a high-speed exit starts curving off: 1,500 ft x tan 15 degrees. */
+const LEAD = 1500 * Math.tan(Math.PI / 12);
+const taxiwayIn = (doc: AirportDoc, id: ID) => doc.features.find((f): f is Taxiway => f.id === id && f.kind === 'taxiway')!;
 
 /** Every segment is either a straight leg or a turn whose handles hug a circle. */
 function straightLegsAndArcs(nodes: PathNode[]): boolean {
@@ -89,13 +92,16 @@ describe('autoSmooth', () => {
     expect(angleBetween(sub(r.nodes[1].p, r.nodes[0].p), { x: 1, y: 0 })).toBeCloseTo(73.3, 0);
   });
 
-  it('turns a runway exit drawn near 30 degrees into a 30 degree exit', () => {
+  it('turns a runway exit drawn near 30 degrees into a high-speed exit', () => {
     const r = autoSmooth([P(0, 0), P(820, -512), P(3000, -600)], 75, { anchors: { start: RUNWAY } });
-    expect(angleBetween(sub(r.nodes[1].p, r.nodes[0].p), { x: 1, y: 0 })).toBeCloseTo(30, 0);
+    expect(r.leadOffs).toEqual([{ radius: 1500, highSpeed: true }]);
+    // After the curve off the runway, the exit leg runs at 30 degrees.
+    expect(angleBetween(sub(r.nodes[2].p, r.nodes[1].p), { x: 1, y: 0 })).toBeCloseTo(30, 0);
   });
 
-  it('leaves a 45 degree exit at 45 degrees', () => {
+  it('leaves a 45 degree exit at 45 degrees, meeting the runway without a curve', () => {
     const r = autoSmooth([P(0, 0), P(600, -600), P(3000, -620)], 75, { anchors: { start: RUNWAY } });
+    expect(r.leadOffs).toEqual([]);
     expect(angleBetween(sub(r.nodes[1].p, r.nodes[0].p), { x: 1, y: 0 })).toBeCloseTo(45, 0);
   });
 
@@ -171,9 +177,13 @@ describe('autoSmoothTaxiway', () => {
       const t = { ...drawn, exitAngle };
       const res = autoSmoothTaxiway({ ...emptyDoc(), features: [rwy, t] }, t.id)!;
       expect(res.exits).toBe(1);
-      expect(res.nodes[0].p).toEqual({ x: 0, y: 0 });
+      const [exit] = runwayExits(res.doc, taxiwayIn(res.doc, t.id));
+      expect(exit.angle).toBeCloseTo(exitAngle, 1);
+      // The exit line still crosses the centerline at the origin; a 30 degree exit curves off before it.
+      expect(exit.leadOff).toBe(exitAngle === 30);
+      expect(res.nodes[0].p.x).toBeCloseTo(exitAngle === 30 ? -LEAD : 0, 6);
+      expect(res.nodes[0].p.y).toBeCloseTo(0, 6);
       expect(res.nodes[res.nodes.length - 1].p).toEqual({ x: 2000, y: -400 });
-      expect(angleToAxis(sub(res.nodes[1].p, res.nodes[0].p), { x: 1, y: 0 })).toBeCloseTo(exitAngle, 1);
       // Still leaning the way it was drawn, toward +x.
       expect(res.nodes[1].p.x).toBeGreaterThanOrEqual(-1e-6);
     }
@@ -185,10 +195,13 @@ describe('autoSmoothTaxiway', () => {
     const doc = { ...emptyDoc(), features: [rwy, t] };
     const res = autoSmoothTaxiway(doc, t.id)!;
     expect(res.exits).toBe(1);
-    expect(res.nodes).toHaveLength(2);
-    expect(res.nodes[1].p).toEqual({ x: 0, y: -400 });
+    // A curve off the runway, then the straight connector.
+    expect(res.nodes).toHaveLength(3);
+    expect(res.straight).toBe(true);
+    expect(res.nodes[2].p).toEqual({ x: 0, y: -400 });
     expect(res.nodes[0].p.y).toBeCloseTo(0, 6);
-    expect(Math.abs(res.nodes[0].p.x)).toBeCloseTo(400 / Math.tan(Math.PI / 6), 3);
+    expect(Math.abs(res.nodes[0].p.x)).toBeCloseTo(400 / Math.tan(Math.PI / 6) + LEAD, 3);
+    expect(runwayExits(res.doc, taxiwayIn(res.doc, t.id))[0].angle).toBeCloseTo(30, 1);
     // Setting it again changes nothing.
     const again = autoSmoothTaxiway(res.doc, t.id)!;
     expect(again.nodes).toEqual(res.nodes);
@@ -200,9 +213,10 @@ describe('autoSmoothTaxiway', () => {
       const t = { ...newTaxiway([P(0, 0), P(0, -400), P(onward, -400)], 'G', 50), exitAngle: 30 };
       const res = autoSmoothTaxiway({ ...emptyDoc(), features: [rwy, t] }, t.id)!;
       expect(res.exits).toBe(1);
-      expect(res.nodes[0].p).toEqual({ x: 0, y: 0 });
+      // Traffic runs toward the lean, so the curve off the runway starts behind the exit.
+      expect(res.nodes[0].p.x).toBeCloseTo(east ? -LEAD : LEAD, 6);
       expect(res.nodes[1].p.x > 0).toBe(east);
-      expect(angleToAxis(sub(res.nodes[1].p, res.nodes[0].p), { x: 1, y: 0 })).toBeCloseTo(30, 1);
+      expect(runwayExits(res.doc, taxiwayIn(res.doc, t.id))[0].angle).toBeCloseTo(30, 1);
     }
   });
 
@@ -213,8 +227,56 @@ describe('autoSmoothTaxiway', () => {
       const t = { ...newTaxiway([P(0, 0), P(0, -400)], 'F', 50), exitAngle: 30 };
       const res = autoSmoothTaxiway({ ...emptyDoc(), features: [rwy, t] }, t.id)!;
       expect(res.exits).toBe(1);
-      expect(res.nodes[0].p.x).toBeCloseTo(400 / Math.tan(Math.PI / 6), 3);
+      expect(res.nodes[0].p.x).toBeCloseTo(400 / Math.tan(Math.PI / 6) + LEAD, 3);
     }
+  });
+
+  it('curves a high-speed exit off the runway centerline on a 1,500 ft radius', () => {
+    const rwy = newRunway({ x: -3000, y: 0 }, { x: 3000, y: 0 });
+    // A 30 degree exit onto a parallel taxiway 400 ft away.
+    const drawn = newTaxiway([P(0, 0), P(400 / Math.tan(Math.PI / 6), -400), P(3000, -400)], 'H', 75);
+    for (const turns of ['drawn', 'tight'] as const) {
+      const res = autoSmoothTaxiway({ ...emptyDoc(), features: [rwy, drawn] }, drawn.id, turns)!;
+      expect(res.leadOffs).toEqual([{ radius: 1500, highSpeed: true }]);
+      expect(res.radii).toHaveLength(1);
+      // Tangent to the centerline where it starts, then a true 1,500 ft arc turning 30 degrees.
+      expect(res.nodes[0].p.x).toBeCloseTo(-LEAD, 6);
+      const arc = pathSegments(res.nodes, false)[0];
+      expect(angleBetween(bezierTangent(arc, 0), { x: 1, y: 0 })).toBeLessThan(0.01);
+      expect(angleBetween(bezierTangent(arc, 1), { x: 1, y: 0 })).toBeCloseTo(30, 6);
+      const center = { x: -LEAD, y: -1500 };
+      for (const k of [0.25, 0.5, 0.75]) expect(dist(bezierPoint(arc, k), center)).toBeCloseTo(1500, -0.5);
+      const [exit] = runwayExits(res.doc, taxiwayIn(res.doc, drawn.id));
+      expect(exit).toMatchObject({ leadOff: true });
+      expect(exit.angle).toBeCloseTo(30, 6);
+      // Smoothing it again changes nothing.
+      expect(autoSmoothTaxiway(res.doc, drawn.id, turns)!.nodes).toEqual(res.nodes);
+    }
+  });
+
+  it('curves a high-speed exit drawn from the taxiway side off the runway too', () => {
+    const rwy = newRunway({ x: -3000, y: 0 }, { x: 3000, y: 0 });
+    const drawn = newTaxiway([P(3000, -400), P(400 / Math.tan(Math.PI / 6), -400), P(0, 0)], 'J', 75);
+    const res = autoSmoothTaxiway({ ...emptyDoc(), features: [rwy, drawn] }, drawn.id)!;
+    expect(res.leadOffs).toEqual([{ radius: 1500, highSpeed: true }]);
+    expect(res.nodes[res.nodes.length - 1].p.x).toBeCloseTo(-LEAD, 6);
+    expect(runwayExits(res.doc, taxiwayIn(res.doc, drawn.id))[0].angle).toBeCloseTo(30, 6);
+    expect(autoSmoothTaxiway(res.doc, drawn.id)!.nodes).toEqual(res.nodes);
+  });
+
+  it('drops the curve off the runway when a high-speed exit is given another angle', () => {
+    const rwy = newRunway({ x: -3000, y: 0 }, { x: 3000, y: 0 });
+    const drawn = newTaxiway([P(0, 0), P(400 / Math.tan(Math.PI / 6), -400), P(3000, -400)], 'H', 75);
+    const fast = autoSmoothTaxiway({ ...emptyDoc(), features: [rwy, drawn] }, drawn.id)!;
+    const t = { ...taxiwayIn(fast.doc, drawn.id), exitAngle: 90 };
+    const res = autoSmoothTaxiway({ ...fast.doc, features: [rwy, t] }, t.id)!;
+    expect(res.leadOffs).toEqual([]);
+    // Straight off the runway where the high-speed exit's line crossed it.
+    expect(res.nodes[0].p.x).toBeCloseTo(0, 6);
+    expect(res.nodes[0].p.y).toBeCloseTo(0, 6);
+    const [exit] = runwayExits(res.doc, taxiwayIn(res.doc, t.id));
+    expect(exit.leadOff).toBe(false);
+    expect(exit.angle).toBeCloseTo(90, 6);
   });
 
   it('leaves the exit alone when no lean fits on the runway', () => {
