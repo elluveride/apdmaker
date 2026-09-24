@@ -35,72 +35,95 @@ describe('autoSmooth', () => {
     expect(autoSmooth([P(0, 0), P(1330, -200), P(2660, 0), P(3990, -200), P(5320, 0)], 75).straight).toBe(true);
   });
 
-  it('rebuilds a jagged bend as straight legs joined by an FAA-radius turn', () => {
+  it('rebuilds a jagged bend as straight legs joined by a clean turn', () => {
     const nodes = [P(0, 0), P(600, 30), P(900, 150), P(1080, 420), P(1100, 1000)];
-    const r = autoSmooth(nodes, 50);
-    expect(r.straight).toBe(false);
-    expect(r.nodes[0].p).toEqual({ x: 0, y: 0 });
-    expect(r.nodes[r.nodes.length - 1].p).toEqual({ x: 1100, y: 1000 });
-    expect(straightLegsAndArcs(r.nodes)).toBe(true);
-    expect(r.radii.length).toBeGreaterThan(0);
-    for (const radius of r.radii) expect(radius).toBeLessThanOrEqual(80);
-    expect(r.deviation).toBeLessThan(150);
+    for (const turns of ['drawn', 'tight'] as const) {
+      const r = autoSmooth(nodes, 50, { turns });
+      expect(r.straight).toBe(false);
+      expect(r.nodes[0].p).toEqual({ x: 0, y: 0 });
+      expect(r.nodes[r.nodes.length - 1].p).toEqual({ x: 1100, y: 1000 });
+      expect(straightLegsAndArcs(r.nodes)).toBe(true);
+      expect(r.radii.length).toBeGreaterThan(0);
+    }
+    // Tight turns use the FAA table (at most 80 ft for a 50 ft taxiway); drawn ones are never tighter.
+    for (const radius of autoSmooth(nodes, 50, { turns: 'tight' }).radii) expect(radius).toBeLessThanOrEqual(80);
+    for (const radius of autoSmooth(nodes, 50).radii) expect(radius).toBeGreaterThanOrEqual(60);
   });
 
-  it('keeps a parallel taxiway parallel: square off the runway, 95 ft turns, straight along', () => {
+  it('keeps a parallel taxiway parallel: square off the runway, straight along', () => {
     const nodes: PathNode[] = [
       P(-5000, -700),
       { p: { x: -4750, y: -1100 }, in: { x: -5000, y: -1060 } },
       { p: { x: 4750, y: -1100 }, out: { x: 5000, y: -1060 } },
       P(5000, -700),
     ];
-    const r = autoSmooth(nodes, 75, { start: RUNWAY, end: RUNWAY });
-    expect(r.straight).toBe(false);
-    expect(r.radii).toEqual([95, 95]);
-    // Leaves and rejoins the runway at right angles.
-    expect(Math.abs(r.nodes[1].p.x - -5000)).toBeLessThan(0.5);
-    expect(Math.abs(r.nodes[r.nodes.length - 2].p.x - 5000)).toBeLessThan(0.5);
-    // The long leg runs along where it was drawn.
-    const top = r.nodes.filter((n) => Math.abs(n.p.x) < 4800);
-    for (const n of top) expect(Math.abs(n.p.y - -1100)).toBeLessThan(15);
-    expect(straightLegsAndArcs(r.nodes)).toBe(true);
-    // Smoothing again changes nothing.
-    expect(autoSmooth(r.nodes, 75, { start: RUNWAY, end: RUNWAY }).nodes).toBe(r.nodes);
+    const anchors = { start: RUNWAY, end: RUNWAY };
+    for (const turns of ['drawn', 'tight'] as const) {
+      const r = autoSmooth(nodes, 75, { anchors, turns });
+      expect(r.straight).toBe(false);
+      expect(r.squared).toBe(2);
+      // Leaves and rejoins the runway at right angles.
+      expect(Math.abs(r.nodes[1].p.x - -5000)).toBeLessThan(0.5);
+      expect(Math.abs(r.nodes[r.nodes.length - 2].p.x - 5000)).toBeLessThan(0.5);
+      // The long leg runs along where it was drawn.
+      for (const n of r.nodes.filter((q) => Math.abs(q.p.x) < 4500)) expect(Math.abs(n.p.y - -1100)).toBeLessThan(15);
+      expect(straightLegsAndArcs(r.nodes)).toBe(true);
+      // Smoothing again changes nothing.
+      expect(autoSmooth(r.nodes, 75, { anchors, turns }).nodes).toBe(r.nodes);
+    }
+    expect(autoSmooth(nodes, 75, { anchors, turns: 'tight' }).radii).toEqual([95, 95]);
+    // As drawn, the corners keep the wider sweep they were drawn with.
+    for (const radius of autoSmooth(nodes, 75, { anchors }).radii) expect(radius).toBeGreaterThan(95);
   });
 
-  it('squares a connector that leaves the runway a little off perpendicular', () => {
-    const r = autoSmooth([P(0, 0), P(120, -400), P(1500, -420)], 50, { start: RUNWAY });
-    const firstLeg = sub(r.nodes[1].p, r.nodes[0].p);
-    expect(angleBetween(firstLeg, { x: 0, y: -1 })).toBeLessThan(0.5);
+  it('squares a connector drawn a few degrees off perpendicular', () => {
+    const r = autoSmooth([P(0, 0), P(40, -400), P(1500, -420)], 50, { anchors: { start: RUNWAY } });
+    expect(angleBetween(sub(r.nodes[1].p, r.nodes[0].p), { x: 0, y: -1 })).toBeLessThan(0.5);
     expect(r.squared).toBe(1);
   });
 
-  it('turns a shallow runway exit into a 30 degree exit', () => {
-    const r = autoSmooth([P(0, 0), P(820, -574), P(3000, -600)], 75, { start: RUNWAY });
-    const firstLeg = sub(r.nodes[1].p, r.nodes[0].p);
-    expect(angleBetween(firstLeg, { x: 1, y: 0 })).toBeCloseTo(30, 0);
+  it('keeps a connector drawn at a deliberate angle', () => {
+    // About 73 degrees off the runway: on purpose, so it stays.
+    const r = autoSmooth([P(0, 0), P(120, -400), P(1500, -420)], 50, { anchors: { start: RUNWAY } });
+    expect(r.squared).toBe(0);
+    expect(angleBetween(sub(r.nodes[1].p, r.nodes[0].p), { x: 1, y: 0 })).toBeCloseTo(73.3, 0);
   });
 
-  it('turns a curve clicked out in small steps into one turn', () => {
+  it('turns a runway exit drawn near 30 degrees into a 30 degree exit', () => {
+    const r = autoSmooth([P(0, 0), P(820, -512), P(3000, -600)], 75, { anchors: { start: RUNWAY } });
+    expect(angleBetween(sub(r.nodes[1].p, r.nodes[0].p), { x: 1, y: 0 })).toBeCloseTo(30, 0);
+  });
+
+  it('leaves a 45 degree exit at 45 degrees', () => {
+    const r = autoSmooth([P(0, 0), P(600, -600), P(3000, -620)], 75, { anchors: { start: RUNWAY } });
+    expect(angleBetween(sub(r.nodes[1].p, r.nodes[0].p), { x: 1, y: 0 })).toBeCloseTo(45, 0);
+  });
+
+  it('turns a curve clicked out in small steps into one turn, as wide as it was drawn', () => {
     // Six clicks sweeping from north-bound to east-bound, starting on a runway.
     const clicks = [P(0, 0), P(160, -720), P(533, -1253), P(1333, -1547), P(2667, -1627), P(3733, -1600)];
-    const r = autoSmooth(clicks, 75, { start: RUNWAY });
-    expect(r.radii).toHaveLength(1);
-    // About a 90 degree turn for a 75 ft taxiway: 95 ft in the FAA table.
-    expect(r.radii[0]).toBeGreaterThanOrEqual(95);
-    expect(r.radii[0]).toBeLessThanOrEqual(97);
-    expect(angleBetween(sub(r.nodes[1].p, r.nodes[0].p), { x: 0, y: -1 })).toBeLessThan(0.5);
-    expect(straightLegsAndArcs(r.nodes)).toBe(true);
+    const drawn = autoSmooth(clicks, 75, { anchors: { start: RUNWAY } });
+    expect(drawn.radii).toHaveLength(1);
+    expect(drawn.radii[0]).toBeGreaterThan(500);
+    expect(straightLegsAndArcs(drawn.nodes)).toBe(true);
+    // Tight: the drawn 77 degree departure is deliberate, so this is about a 79 degree turn,
+    // which the FAA table puts between its 60 and 90 degree radii (110 and 95 ft).
+    const tight = autoSmooth(clicks, 75, { anchors: { start: RUNWAY }, turns: 'tight' });
+    expect(tight.radii).toHaveLength(1);
+    expect(tight.radii[0]).toBeGreaterThanOrEqual(95);
+    expect(tight.radii[0]).toBeLessThanOrEqual(110);
   });
 
-  it('turns a drawn quarter-curve into one square corner with an FAA-radius turn', () => {
+  it('turns a drawn quarter-curve into one circular turn', () => {
     const curve: PathNode[] = [
       { p: { x: 0, y: 0 }, out: { x: -300, y: 0 } },
       { p: { x: -700, y: 700 }, in: { x: -700, y: 300 } },
     ];
-    const r = autoSmooth(curve, 75);
-    expect(r.radii).toEqual([95]);
-    expect(r.deviation).toBeLessThan(250);
+    expect(autoSmooth(curve, 75, { turns: 'tight' }).radii).toEqual([95]);
+    const drawn = autoSmooth(curve, 75);
+    expect(drawn.radii).toHaveLength(1);
+    expect(drawn.radii[0]).toBeGreaterThan(500);
+    expect(drawn.deviation).toBeLessThan(60);
   });
 
   it('keeps a U clicked out in steps as two turns, not one', () => {
@@ -131,7 +154,8 @@ describe('autoSmoothTaxiway', () => {
 
   it('squares a taxiway to the runway it starts on', () => {
     const rwy = newRunway({ x: -3000, y: 0 }, { x: 3000, y: 0 });
-    const t = newTaxiway([P(0, 0), P(-110, -380), P(-1400, -400)], 'C', 50);
+    // Leaves the runway at about 84 degrees: meant to be square.
+    const t = newTaxiway([P(0, 0), P(-40, -380), P(-1400, -400)], 'C', 50);
     const res = autoSmoothTaxiway({ ...emptyDoc(), features: [rwy, t] }, t.id)!;
     expect(res.squared).toBe(1);
     const leg = sub(res.nodes[1].p, res.nodes[0].p);

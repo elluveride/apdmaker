@@ -91,23 +91,37 @@ const NEGLIGIBLE_BEND = 10;
 
 const lineThrough = (a: Vec, b: Vec): Line => ({ p: a, d: norm(sub(b, a)) });
 
+/** A corner of the route, and how tight the drawing actually turned there (0 = a sharp corner). */
+interface Corner {
+  p: Vec;
+  drawnRadius: number;
+}
+
+const sharp = (p: Vec): Corner => ({ p, drawnRadius: 0 });
+
 function bendAt(v: Vec[], i: number): { angle: number; side: number } {
   const d1 = sub(v[i], v[i - 1]);
   const d2 = sub(v[i + 1], v[i]);
   return { angle: angleBetween(d1, d2), side: Math.sign(d1.x * d2.y - d1.y * d2.x) };
 }
 
+/** Within this of square, a connection was meant to be square. */
+const SQUARE_WITHIN = 8;
+/** Within this of 30 degrees, a runway exit was meant to be a 30 degree exit. */
+const EXIT_WITHIN = 5;
+
 /**
- * Point the leg straight into what it connects to: square to a runway or
- * taxiway when within 20 degrees of square, or exactly 30 degrees for a
- * runway exit drawn within 10 degrees of that. Returns null to leave it.
+ * Point the leg straight into what it connects to, but only when it was
+ * clearly meant to be: square when within a few degrees of square, exactly 30
+ * degrees for a runway exit drawn within a few degrees of that. Any other
+ * angle is deliberate and stays. Returns null to leave it.
  */
 function squareTo(d: Vec, anchor: Anchor): Vec | null {
   const axis = dot(d, anchor.axis) >= 0 ? anchor.axis : mul(anchor.axis, -1);
   const side = dot(d, leftOf(axis)) >= 0 ? leftOf(axis) : rightOf(axis);
   const angle = angleBetween(d, axis);
-  if (angle >= 70) return side;
-  if (anchor.runway && Math.abs(angle - 30) <= 10) {
+  if (angle >= 90 - SQUARE_WITHIN) return side;
+  if (anchor.runway && Math.abs(angle - 30) <= EXIT_WITHIN) {
     return norm(add(mul(axis, Math.cos(rad(30))), mul(side, Math.sin(rad(30)))));
   }
   return null;
@@ -120,17 +134,21 @@ function squareTo(d: Vec, anchor: Anchor): Vec | null {
  * the single corner where the legs on either side meet. Bends under 10 degrees
  * are wobble and don't break a run; a real straight between turns does.
  */
-function routeCorners(pts: Vec[], width: number, startDir: Vec, endDir: Vec): Vec[] {
+function routeCorners(pts: Vec[], width: number, startDir: Vec, endDir: Vec, clicks: Vec[]): Corner[] {
   const idx = simplify(pts, Math.max(5, width * 0.2));
-  const v = idx.map((i) => pts[i]);
-  // The drawing's own direction leaving or reaching a vertex: exact on straight legs, and on a
-  // curve the true tangent rather than a chord that cuts across the bend.
+  // Resampling lands a few feet from the points that were actually placed; put corners back on them.
+  const spacing = dist(pts[0], pts[1]);
+  const v = idx.map((i) => {
+    const near = clicks.find((c) => dist(c, pts[i]) <= spacing * 1.5);
+    return near ?? pts[i];
+  });
+  // The line of the leg leaving or reaching vertex k. At the taxiway's own ends that is the exact
+  // direction from the drawn handles; elsewhere the leg's chord, which on a long straight is exact
+  // (a local tangent read thousands of feet away would swing the corner).
   const heading = (k: number, forward: boolean): Line => {
     if (forward && k === 0) return { p: v[0], d: startDir };
     if (!forward && k === v.length - 1) return { p: v[k], d: endDir };
-    const i = idx[k];
-    const j = forward ? Math.min(i + 1, idx[k + 1]) : Math.max(i - 1, idx[k - 1]);
-    return { p: v[k], d: norm(forward ? sub(pts[j], pts[i]) : sub(pts[i], pts[j])) };
+    return forward ? lineThrough(v[k], v[k + 1]) : { p: v[k], d: norm(sub(v[k], v[k - 1])) };
   };
   const legLength = (k: number) => dist(v[k], v[k + 1]);
   const bends = v.map((_, i) => (i > 0 && i < v.length - 1 ? bendAt(v, i) : { angle: 0, side: 0 }));
@@ -138,8 +156,19 @@ function routeCorners(pts: Vec[], width: number, startDir: Vec, endDir: Vec): Ve
   // A leg much longer than both neighbours is a straight between two turns, not a chord of one curve.
   const isStraightBetween = (k: number) => legLength(k) > 2 * Math.max(legLength(k - 1), legLength(k + 1));
 
+  /**
+   * How tight the drawing turned around a corner: a circular arc of radius R
+   * turning through D passes R(sec(D/2) - 1) from the corner, so measure that gap.
+   */
+  const drawnRadius = (corner: Vec, i: number, j: number, turn: number): number => {
+    let gap = Infinity;
+    for (let k = idx[i - 1]; k < idx[j + 1]; k++) gap = Math.min(gap, distToSegment(corner, pts[k], pts[k + 1]));
+    const bulge = 1 / Math.cos(rad(turn) / 2) - 1;
+    return bulge > 1e-6 && Number.isFinite(gap) ? gap / bulge : 0;
+  };
+
   /** The corner(s) for bends i..j, all gentle and turning the same way. */
-  const resolve = (i: number, j: number): Vec[] => {
+  const resolve = (i: number, j: number): Corner[] => {
     let total = 0;
     for (let k = i; k <= j; k++) total += signed(k);
     if (Math.abs(total) < NEGLIGIBLE_BEND) return [];
@@ -148,16 +177,19 @@ function routeCorners(pts: Vec[], width: number, startDir: Vec, endDir: Vec): Ve
       for (let k = i; k < j; k++) if (legLength(k) > legLength(split)) split = k;
       return [...resolve(i, split), ...resolve(split + 1, j)];
     }
-    const corner = lineIntersection(heading(i - 1, true), heading(j + 1, false));
+    const before = heading(i - 1, true);
+    const after = heading(j + 1, false);
+    const corner = lineIntersection(before, after);
     const reach = dist(v[i - 1], v[j + 1]);
-    return corner && dist(corner, v[i]) <= reach && dist(corner, v[j]) <= reach ? [corner] : v.slice(i, j + 1);
+    if (!corner || dist(corner, v[i]) > reach || dist(corner, v[j]) > reach) return v.slice(i, j + 1).map(sharp);
+    return [{ p: corner, drawnRadius: drawnRadius(corner, i, j, angleBetween(before.d, after.d)) }];
   };
 
-  const corners: Vec[] = [v[0]];
+  const corners: Corner[] = [sharp(v[0])];
   let i = 1;
   while (i < v.length - 1) {
     if (bends[i].angle >= SHARP_BEND) {
-      corners.push(v[i]);
+      corners.push(sharp(v[i]));
       i++;
       continue;
     }
@@ -175,29 +207,30 @@ function routeCorners(pts: Vec[], width: number, startDir: Vec, endDir: Vec): Ve
     corners.push(...resolve(i, j));
     i = j + 1;
   }
-  corners.push(v[v.length - 1]);
+  corners.push(sharp(v[v.length - 1]));
 
   // Merging can leave neighbouring legs nearly in line: those are one leg.
   for (let k = 1; k < corners.length - 1; ) {
-    if (bendAt(corners, k).angle < NEGLIGIBLE_BEND) corners.splice(k, 1);
+    if (bendAt(corners.map((c) => c.p), k).angle < NEGLIGIBLE_BEND) corners.splice(k, 1);
     else k++;
   }
   return corners;
 }
 
 /** Square the first and last legs to the runway or taxiway they meet, where they nearly are already. */
-function squareEnds(corners: Vec[], width: number, anchors: { start?: Anchor; end?: Anchor }): number {
+function squareEnds(corners: Corner[], width: number, anchors: { start?: Anchor; end?: Anchor }): number {
   if (corners.length < 3) return 0;
   let squared = 0;
   const trySquare = (end: number, corner: number, beyond: number, anchor?: Anchor) => {
     if (!anchor) return;
-    const from = corners[end];
-    const d = squareTo(norm(sub(corners[corner], from)), anchor);
+    const from = corners[end].p;
+    const at = corners[corner].p;
+    const d = squareTo(norm(sub(at, from)), anchor);
     if (!d) return;
-    const moved = lineIntersection({ p: from, d }, lineThrough(corners[corner], corners[beyond]));
-    const reach = dist(corners[corner], corners[beyond]) + dist(from, corners[corner]);
-    if (moved && dot(sub(moved, from), d) > width && dist(moved, corners[corner]) <= reach) {
-      corners[corner] = moved;
+    const moved = lineIntersection({ p: from, d }, lineThrough(at, corners[beyond].p));
+    const reach = dist(at, corners[beyond].p) + dist(from, at);
+    if (moved && dot(sub(moved, from), d) > width && dist(moved, at) <= reach) {
+      corners[corner] = { ...corners[corner], p: moved };
       squared++;
     }
   };
@@ -247,14 +280,23 @@ function turnNodes(t: Turn): PathNode[] {
   ];
 }
 
-/** Straight legs between the corners, each corner rounded at the FAA radius (smaller only where legs are too short). */
-function filletCorners(corners: Vec[], width: number): { nodes: PathNode[]; radii: number[] } {
+/** How turns are rounded: as tight as they were drawn, or all at the FAA minimum. */
+export type TurnStyle = 'drawn' | 'tight';
+
+/**
+ * Straight legs between the corners, each corner a circular turn: the radius it
+ * was drawn with (never tighter than the FAA minimum for the width), or the FAA
+ * minimum itself when `style` is tight. Shrunk only where the legs are too short.
+ */
+function filletCorners(route: Corner[], width: number, style: TurnStyle): { nodes: PathNode[]; radii: number[] } {
+  const corners = route.map((c) => c.p);
   const turns: Turn[] = [];
   for (let i = 1; i < corners.length - 1; i++) {
     const d1 = norm(sub(corners[i], corners[i - 1]));
     const d2 = norm(sub(corners[i + 1], corners[i]));
     const angle = Math.min(170, angleBetween(d1, d2));
-    const radius = turnRadius(width, angle);
+    const minimum = turnRadius(width, angle);
+    const radius = style === 'tight' ? minimum : Math.max(minimum, route[i].drawnRadius);
     turns.push({ at: corners[i], d1, d2, angle, radius, tangent: radius * Math.tan(rad(angle) / 2) });
   }
   // Two turns sharing a leg split it in proportion to what each wants.
@@ -306,10 +348,17 @@ function pathDistance(a: PathNode[], b: PathNode[]): number {
 /**
  * Keep the first and last points and rebuild the taxiway the way real ones are
  * laid out: a straight line when the route never strays far from one, otherwise
- * straight legs meeting runways and taxiways square, joined by turns at the FAA
- * centerline radius for the taxiway's width.
+ * straight legs joined by circular turns. Wobble goes; the angles and curves
+ * that were drawn on purpose stay, with each turn as tight as it was drawn
+ * (never tighter than the FAA minimum for the width), or at the FAA minimum
+ * when `turns` is tight.
  */
-export function autoSmooth(nodes: PathNode[], width: number, anchors: { start?: Anchor; end?: Anchor } = {}): SmoothResult {
+export interface SmoothOptions {
+  anchors?: { start?: Anchor; end?: Anchor };
+  turns?: TurnStyle;
+}
+
+export function autoSmooth(nodes: PathNode[], width: number, { anchors = {}, turns = 'drawn' }: SmoothOptions = {}): SmoothResult {
   const unchanged = { nodes, straight: nodes.length <= 2, radii: [], squared: 0, deviation: 0 };
   if (nodes.length < 2) return unchanged;
   const first = nodes[0].p;
@@ -325,9 +374,15 @@ export function autoSmooth(nodes: PathNode[], width: number, anchors: { start?: 
     result = { nodes: [{ p: first }, { p: last }], straight: true, radii: [], squared: 0, deviation: bulge };
   } else {
     const segs = pathSegments(nodes, false);
-    const corners = routeCorners(pts, width, bezierTangent(segs[0], 0), bezierTangent(segs[segs.length - 1], 1));
+    const corners = routeCorners(
+      pts,
+      width,
+      bezierTangent(segs[0], 0),
+      bezierTangent(segs[segs.length - 1], 1),
+      nodes.map((n) => n.p),
+    );
     const squared = squareEnds(corners, width, anchors);
-    const { nodes: rebuilt, radii } = filletCorners(corners, width);
+    const { nodes: rebuilt, radii } = filletCorners(corners, width, turns);
     result = { nodes: rebuilt, straight: corners.length === 2, radii, squared, deviation: 0 };
     result.deviation = pathDistance(nodes, rebuilt);
   }
@@ -366,7 +421,7 @@ export interface SmoothTaxiwayResult extends SmoothResult {
 }
 
 /** Auto-smooth one taxiway and slide any taxiway ends that met its centerline onto the new one. */
-export function autoSmoothTaxiway(doc: AirportDoc, id: ID): SmoothTaxiwayResult | null {
+export function autoSmoothTaxiway(doc: AirportDoc, id: ID, turns: TurnStyle = 'drawn'): SmoothTaxiwayResult | null {
   const t = doc.features.find((f): f is Taxiway => f.id === id && f.kind === 'taxiway');
   if (!t || t.closed || t.nodes.length < 2) return null;
 
@@ -374,7 +429,7 @@ export function autoSmoothTaxiway(doc: AirportDoc, id: ID): SmoothTaxiwayResult 
     start: anchorAt(doc, t.id, t.nodes[0].p),
     end: anchorAt(doc, t.id, t.nodes[t.nodes.length - 1].p),
   };
-  const result = autoSmooth(t.nodes, t.width, anchors);
+  const result = autoSmooth(t.nodes, t.width, { anchors, turns });
   const oldPoly = flatten(t.nodes, false);
   const newPoly = flatten(result.nodes, false);
   let reattached = 0;

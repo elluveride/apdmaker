@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { emptyDoc, nextTaxiwayName, uid } from '../model/defaults';
 import { sampleDoc } from '../model/sample';
-import { autoSmoothTaxiway, cleanTaxiwayName } from '../model/smooth';
+import { autoSmoothTaxiway, cleanTaxiwayName, type TurnStyle } from '../model/smooth';
 import type { AirportDoc, AirportMeta, Feature, ID, SymbolType } from '../model/types';
 
 export type ToolId =
@@ -58,6 +58,8 @@ interface State {
   /** Bumped when web fonts finish loading so text boxes re-measure. */
   fontEpoch: number;
   printing: boolean;
+  /** How auto-smooth rounds turns: as drawn, or at the FAA minimum radius. */
+  smoothTurns: TurnStyle;
 
   /** Save the current doc as an undo step. */
   checkpoint: () => void;
@@ -78,6 +80,7 @@ interface State {
   patchMeta: (patch: Partial<AirportMeta>, key?: string) => void;
   renameTaxiway: (id: ID, name: string) => void;
   autoSmooth: (id: ID) => void;
+  setSmoothTurns: (turns: TurnStyle) => void;
 
   select: (id: ID | null, node?: number | null) => void;
   setTool: (tool: ToolId) => void;
@@ -100,6 +103,7 @@ interface State {
 
 const STORAGE_KEY = 'apdmaker.doc.v1';
 const WELCOME_KEY = 'apdmaker.welcomed';
+const TURNS_KEY = 'apdmaker.smoothTurns';
 const HISTORY_LIMIT = 200;
 
 function safeRead(key: string): string | null {
@@ -166,6 +170,7 @@ export const useStore = create<State>((set, get) => ({
   toast: null,
   fontEpoch: 0,
   printing: false,
+  smoothTurns: safeRead(TURNS_KEY) === 'tight' ? 'tight' : 'drawn',
 
   checkpoint: () =>
     set((s) => ({ past: pushPast(s.past, s.doc), future: [], lastKey: null })),
@@ -266,8 +271,13 @@ export const useStore = create<State>((set, get) => ({
     get().updateFeature(id, (f) => ({ ...f, name, showLabel: true }) as Feature);
   },
 
+  setSmoothTurns: (smoothTurns) => {
+    safeWrite(TURNS_KEY, smoothTurns);
+    set({ smoothTurns });
+  },
+
   autoSmooth: (id) => {
-    const res = autoSmoothTaxiway(get().doc, id);
+    const res = autoSmoothTaxiway(get().doc, id, get().smoothTurns);
     const before = get().doc.features.find((f) => f.id === id);
     if (!res || before?.kind !== 'taxiway') return;
     const label = `Taxiway ${before.name || '—'}`;
@@ -284,7 +294,7 @@ export const useStore = create<State>((set, get) => ({
     const radius = lo === hi ? `${lo} ft` : `${lo}–${hi} ft`;
     const shape = res.straight
       ? 'a straight line'
-      : `${turns + 1} straight legs with ${turns === 1 ? 'a' : turns} ${radius} turn${turns === 1 ? '' : 's'}, ${within}`;
+      : `${turns + 1} straight legs and ${turns === 1 ? 'a turn' : `${turns} turns`} (${radius} radius), ${within}`;
     const squared = res.squared ? ` ${res.squared === 1 ? 'One end' : 'Both ends'} squared to what ${res.squared === 1 ? 'it meets' : 'they meet'}.` : '';
     const moved = res.reattached
       ? ` ${res.reattached} connected taxiway end${res.reattached === 1 ? '' : 's'} moved with it.`

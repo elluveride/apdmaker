@@ -21,7 +21,11 @@ Everything runs in the browser. Work is saved automatically to local storage and
 ### Taxiway clean-up
 
 - **Rename**: double-click a taxiway's name on the chart, press `F2` (or `Enter`) with it selected, use **Rename** in the bar that appears over the canvas, or double-click it in **Layers**. Names are upper case letters and digits, up to 8 characters.
-- **Auto-smooth**: keeps the first and last points and rebuilds the taxiway the way real ones are laid out. A path that never strays far from a straight line becomes one (brief wobbles don't count). Otherwise the drawing is read as straight legs: a curve drawn or clicked out in steps turns into the single corner it implies, while a real straight between two turns keeps them apart. Legs that meet a runway or taxiway within 20° of square are squared to it, and a runway exit drawn near 30° becomes exactly 30°. Each corner is rounded at the taxiway centerline radius the FAA tabulates for that width and turn angle (AC 150/5300-13A tables 4-4 to 4-10; e.g. 95 ft for a 90° turn on a 75 ft taxiway). Taxiways whose ends were attached to it slide along with it, hold-short lines update, smoothing twice changes nothing, and `Ctrl+Z` undoes it.
+- **Auto-smooth**: keeps the first and last points and rebuilds the taxiway the way real ones are laid out. A path that never strays far from a straight line becomes one (brief wobbles don't count). Otherwise the drawing is read as straight legs: a curve drawn or clicked out in steps turns into the single corner it implies, while a real straight between two turns keeps them apart. The angles you draw are kept. Only a leg that meets a runway or taxiway within 8° of square is squared to it, and only a runway exit within 5° of 30° becomes exactly 30°. **Turns** picks how corners are rounded:
+  - *As drawn* keeps the radius of each curve you drew, so a wide sweeping turn stays wide. It never goes tighter than the FAA minimum.
+  - *Tight* uses the minimum centerline radius the FAA tabulates for that width and turn angle (AC 150/5300-13A tables 4-4 to 4-10; e.g. 95 ft for a 90° turn on a 75 ft taxiway).
+
+  Taxiways whose ends were attached to it slide along with it, hold-short lines update, smoothing twice changes nothing, and `Ctrl+Z` undoes it.
 
 `Ctrl+Z` / `Ctrl+Shift+Z` undo and redo, `Ctrl+D` duplicates, arrow keys nudge 10 ft (`Shift`: 100 ft), `?` lists every shortcut.
 

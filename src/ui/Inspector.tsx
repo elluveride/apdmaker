@@ -3,7 +3,7 @@ import { add, cornerNode, dirFromBearing, leftOf, mid, mul, reverseNodes, rightO
 import { derive } from '../model/derive';
 import { newRunway, SYMBOL_NAMES } from '../model/defaults';
 import { featureTitle, rotateFeature } from '../model/featureOps';
-import { cleanTaxiwayName } from '../model/smooth';
+import { cleanTaxiwayName, type TurnStyle } from '../model/smooth';
 import {
   defaultHoldDistance,
   formatBearing,
@@ -360,6 +360,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 function NodeTools({ f, closed }: { f: Taxiway | Area; closed: boolean }) {
   const node = useStore((s) => s.selection.node);
   const autoSmooth = useStore((s) => s.autoSmooth);
+  const smoothTurns = useStore((s) => s.smoothTurns);
+  const setSmoothTurns = useStore((s) => s.setSmoothTurns);
   const select = useStore((s) => s.select);
   const update = useUpdate<Taxiway | Area>(f);
   const n = node !== null ? f.nodes[node] : undefined;
@@ -374,10 +376,24 @@ function NodeTools({ f, closed }: { f: Taxiway | Area; closed: boolean }) {
           <button type="button" className="btn primary wide" onClick={() => autoSmooth(f.id)}>
             <SmoothIcon size={18} /> Auto-smooth
           </button>
+          <Field label="Turns">
+            <Segmented<TurnStyle>
+              size="sm"
+              value={smoothTurns}
+              options={[
+                { value: 'drawn', label: 'As drawn', title: 'Keep each curve as wide as you drew it' },
+                { value: 'tight', label: 'Tight', title: 'Every turn at the FAA minimum radius' },
+              ]}
+              onChange={setSmoothTurns}
+              label="Turn style"
+            />
+          </Field>
           <p className="field-hint">
-            Keeps the first and last points and rebuilds the taxiway the way real ones are laid out: straight legs, squared
-            to the runway or taxiway they meet, joined by turns at the FAA centerline radius for its width. A straight line
-            when the path never strays far from one. Taxiways attached to it move with it.
+            Keeps the first and last points, removes wobble and rebuilds the taxiway as straight legs joined by clean
+            circular turns. The angles you drew stay; a connection is only squared to a runway or taxiway when it is
+            within 8° of square. <strong>As drawn</strong> keeps each curve as wide as you drew it (never tighter than the
+            FAA minimum for the width); <strong>Tight</strong> uses the FAA minimum for every turn. Taxiways attached to it
+            move with it.
           </p>
         </div>
       )}
