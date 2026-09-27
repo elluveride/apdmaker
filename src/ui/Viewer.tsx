@@ -6,7 +6,7 @@ import { SheetSvg } from '../render/Sheet';
 import { EMBEDDED } from '../env';
 import { useStore } from '../store/store';
 import { DownloadIcon, FitIcon, MinusIcon, PlusIcon, PrintIcon } from './icons';
-import { runExport, useCanSave } from './SaveBar';
+import { runExport } from './SaveBar';
 
 export function Viewer() {
   const style = useStore((s) => s.style);
@@ -19,7 +19,6 @@ export function Viewer() {
 
 function SurfaceViewer() {
   const doc = useStore((s) => s.doc);
-  const canSave = useCanSave();
   return (
     <div className="viewer surface-viewer">
       <EditorCanvas interactive={false} />
@@ -27,11 +26,9 @@ function SurfaceViewer() {
         <button type="button" className="btn" onClick={() => useStore.getState().requestFit()}>
           <FitIcon size={16} /> Fit
         </button>
-        {canSave && (
-          <button type="button" className="btn" onClick={() => runExport(() => exportSurfacePng(doc))}>
-            <DownloadIcon size={16} /> PNG
-          </button>
-        )}
+        <button type="button" className="btn" onClick={() => runExport(() => exportSurfacePng(doc))}>
+          <DownloadIcon size={16} /> PNG
+        </button>
       </div>
     </div>
   );
@@ -45,7 +42,6 @@ interface View {
 
 function SheetViewer() {
   const doc = useStore((s) => s.doc);
-  const canSave = useCanSave();
   const fitRequest = useStore((s) => s.fitRequest);
   const derived = useMemo(() => derive(doc), [doc]);
   const page = derived.sheet;
@@ -122,24 +118,20 @@ function SheetViewer() {
         <button type="button" className="icon-btn" onClick={() => zoomBy(1.25)} aria-label="Zoom in">
           <PlusIcon size={18} />
         </button>
-        {canSave && (
-          <>
-            <span className="divider" />
-            <button type="button" className="btn" onClick={() => runExport(() => exportSheetJpg(doc))}>
-              <DownloadIcon size={16} /> JPG
-            </button>
-            <button type="button" className="btn" onClick={() => runExport(() => exportSheetPng(doc))}>
-              <DownloadIcon size={16} /> PNG
-            </button>
-            <button type="button" className="btn" onClick={() => runExport(() => exportSheetSvg(doc))}>
-              <DownloadIcon size={16} /> SVG
-            </button>
-            {!EMBEDDED && (
-              <button type="button" className="btn" onClick={() => useStore.getState().setPrinting(true)}>
-                <PrintIcon size={16} /> Print
-              </button>
-            )}
-          </>
+        <span className="divider" />
+        <button type="button" className="btn" onClick={() => runExport(() => exportSheetJpg(doc))}>
+          <DownloadIcon size={16} /> JPG
+        </button>
+        <button type="button" className="btn" onClick={() => runExport(() => exportSheetPng(doc))}>
+          <DownloadIcon size={16} /> PNG
+        </button>
+        <button type="button" className="btn" onClick={() => runExport(() => exportSheetSvg(doc))}>
+          <DownloadIcon size={16} /> SVG
+        </button>
+        {!EMBEDDED && (
+          <button type="button" className="btn" onClick={() => useStore.getState().setPrinting(true)}>
+            <PrintIcon size={16} /> Print
+          </button>
         )}
       </div>
     </div>

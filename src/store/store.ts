@@ -74,6 +74,8 @@ interface State {
   smoothTurns: TurnStyle;
   /** Size of the editing canvas in screen pixels, for placing things in view. */
   viewSize: { w: number; h: number };
+  /** A file nothing here could save, shown so the viewer can save it by hand. */
+  handOff: { filename: string; blob: Blob } | null;
 
   /** Save the current doc as an undo step. */
   checkpoint: () => void;
@@ -106,6 +108,7 @@ interface State {
   /** Scale the reference image and everything drawn about runway `id` so it is `length` ft long. */
   scaleToRunway: (id: ID, length: number) => void;
   setViewSize: (size: { w: number; h: number }) => void;
+  setHandOff: (file: { filename: string; blob: Blob } | null) => void;
 
   select: (id: ID | null, node?: number | null) => void;
   setTool: (tool: ToolId) => void;
@@ -249,6 +252,7 @@ export const useStore = create<State>((set, get) => ({
   printing: false,
   smoothTurns: safeRead(TURNS_KEY) === 'tight' ? 'tight' : 'drawn',
   viewSize: { w: 0, h: 0 },
+  handOff: null,
 
   checkpoint: () =>
     set((s) => ({ past: pushPast(s.past, s.doc), future: [], lastKey: null })),
@@ -435,6 +439,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   setViewSize: (viewSize) => set({ viewSize }),
+  setHandOff: (handOff) => set({ handOff }),
 
   select: (id, node = null) => set({ selection: { id, node } }),
   setTool: (tool) => set({ tool }),

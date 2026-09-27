@@ -4,7 +4,7 @@ import { exportJson, exportSheetJpg, exportSheetPng, exportSheetSvg, exportSurfa
 import { EMBEDDED } from '../env';
 import { useStore } from '../store/store';
 import { ReferenceFileInput } from './ReferencePanel';
-import { runExport, useCanSave } from './SaveBar';
+import { runExport } from './SaveBar';
 import { Segmented } from './fields';
 import { BrandMark, HelpIcon, MenuIcon, PanelIcon, RedoIcon, UndoIcon } from './icons';
 
@@ -90,7 +90,6 @@ function FileMenu() {
   const ref = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
-  const canSave = useCanSave();
   const s = useStore.getState;
 
   useEffect(() => {
@@ -130,32 +129,26 @@ function FileMenu() {
           <button role="menuitem" type="button" onClick={() => { setOpen(false); imageRef.current?.click(); }}>
             Trace a reference image…
           </button>
-          {canSave ? (
-            <>
-              <button role="menuitem" type="button" onClick={run(() => runExport(() => exportJson(s().doc)))}>
-                Save airport file (.apd.json)
-              </button>
-              <hr />
-              <button role="menuitem" type="button" onClick={run(() => runExport(() => exportSheetJpg(s().doc)))}>
-                Export chart · JPG 300 dpi
-              </button>
-              <button role="menuitem" type="button" onClick={run(() => runExport(() => exportSheetPng(s().doc)))}>
-                Export chart · PNG 300 dpi
-              </button>
-              <button role="menuitem" type="button" onClick={run(() => runExport(() => exportSheetSvg(s().doc)))}>
-                Export chart · SVG
-              </button>
-              <button role="menuitem" type="button" onClick={run(() => runExport(() => exportSurfacePng(s().doc)))}>
-                Export surface view · PNG
-              </button>
-              {!EMBEDDED && (
-                <button role="menuitem" type="button" onClick={run(() => s().setPrinting(true))}>
-                  Print chart…
-                </button>
-              )}
-            </>
-          ) : (
-            <p className="menu-note">Saving and exporting aren’t available in this view. Run APD Maker from its repository to save files.</p>
+          <button role="menuitem" type="button" onClick={run(() => runExport(() => exportJson(s().doc)))}>
+            Save airport file (.apd.json)
+          </button>
+          <hr />
+          <button role="menuitem" type="button" onClick={run(() => runExport(() => exportSheetJpg(s().doc)))}>
+            Export chart · JPG 300 dpi
+          </button>
+          <button role="menuitem" type="button" onClick={run(() => runExport(() => exportSheetPng(s().doc)))}>
+            Export chart · PNG 300 dpi
+          </button>
+          <button role="menuitem" type="button" onClick={run(() => runExport(() => exportSheetSvg(s().doc)))}>
+            Export chart · SVG
+          </button>
+          <button role="menuitem" type="button" onClick={run(() => runExport(() => exportSurfacePng(s().doc)))}>
+            Export surface view · PNG
+          </button>
+          {!EMBEDDED && (
+            <button role="menuitem" type="button" onClick={run(() => s().setPrinting(true))}>
+              Print chart…
+            </button>
           )}
         </div>
       )}

@@ -6,7 +6,7 @@ import { useStore, type PanelTab } from './store/store';
 import { AirportPanel } from './ui/AirportPanel';
 import { Inspector } from './ui/Inspector';
 import { LayersPanel } from './ui/LayersPanel';
-import { SaveBar } from './ui/SaveBar';
+import { HandOff, SaveBar } from './ui/SaveBar';
 import { Help, Toast, Welcome } from './ui/Overlays';
 import { StatusBar } from './ui/StatusBar';
 import { Toolbar, ToolOptions } from './ui/Toolbar';
@@ -102,6 +102,7 @@ export function App() {
         <StatusBar />
         <Welcome />
         <Help />
+        <HandOff />
         <Toast />
       </div>
       <PrintRoot />

@@ -649,6 +649,26 @@ button:disabled {
   justify-content: center;
 }
 
+.modal.handoff {
+  width: min(760px, 100%);
+}
+
+.handoff-image {
+  display: block;
+  width: 100%;
+  margin: 12px 0 16px;
+  border: 1px solid var(--line);
+}
+
+.handoff-text {
+  width: 100%;
+  height: 240px;
+  margin: 12px 0 16px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  resize: vertical;
+}
+
 .inspector,
 .checklist {
   display: flex;
