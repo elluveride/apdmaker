@@ -93,6 +93,6 @@ src/
   io/       SVG / PNG / JSON export and import
 ```
 
-Build with `VITE_EMBEDDED=true` for sandboxed frames that block downloads and printing, such as a claude.ai artifact. Printing is then hidden. Files are saved through the viewer's save prompt, from the artifact's `downloads` capability. Where the viewer doesn't offer one, a dialog shows the file to save by hand: right-click the chart image to save it, or copy the airport file's text.
+Build with `VITE_EMBEDDED=true` for sandboxed frames that block downloads and printing, such as a claude.ai artifact. Printing is then hidden. A dialog then shows each file to save by hand: right-click the chart image to save it, or copy the airport file's text. Build with `VITE_ARTIFACT_RUNTIME=true` too, and publish with the artifact's `downloads` capability, to save through the viewer's save prompt instead.
 
 To publish on GitHub Pages, set **Settings → Pages → Source** to *GitHub Actions*, then run the **Deploy to GitHub Pages** workflow.

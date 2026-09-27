@@ -1,4 +1,4 @@
-import { EMBEDDED } from '../env';
+import { ARTIFACT_RUNTIME, EMBEDDED } from '../env';
 
 /**
  * How files leave the app: a plain browser download, or, when the app runs as
@@ -18,6 +18,7 @@ let viewer: Promise<ViewerDownloads | null> | null = null;
 
 /** The claude.ai viewer's save prompt, or null outside a viewer that offers one. */
 function viewerDownloads(): Promise<ViewerDownloads | null> {
+  if (!ARTIFACT_RUNTIME) return Promise.resolve(null);
   viewer ??= (async () => {
     const host = (window as unknown as { claude?: ArtifactHost }).claude;
     if (typeof host?.use !== 'function') return null;
