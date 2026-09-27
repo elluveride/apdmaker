@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { emptyDoc } from '../model/defaults';
 import { sampleDoc } from '../model/sample';
 import { exportJson, exportSheetPng, exportSheetSvg, exportSurfacePng, readDocFile } from '../io/files';
 import { EMBEDDED } from '../env';
 import { useStore } from '../store/store';
+import { ReferenceFileInput } from './ReferencePanel';
 import { Segmented } from './fields';
 import { BrandMark, HelpIcon, MenuIcon, PanelIcon, RedoIcon, UndoIcon } from './icons';
 
@@ -88,6 +88,7 @@ function FileMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const imageRef = useRef<HTMLInputElement>(null);
   const s = useStore.getState;
 
   useEffect(() => {
@@ -115,7 +116,7 @@ function FileMenu() {
       </button>
       {open && (
         <div className="menu-list" role="menu">
-          <button role="menuitem" type="button" onClick={run(() => { s().loadDoc(emptyDoc()); s().showToast('Started a blank airport. Undo brings the old one back.'); })}>
+          <button role="menuitem" type="button" onClick={run(() => s().startBlank())}>
             New blank airport
           </button>
           <button role="menuitem" type="button" onClick={run(() => { s().loadDoc(sampleDoc()); s().showToast('Loaded the sample airport.'); })}>
@@ -123,6 +124,9 @@ function FileMenu() {
           </button>
           <button role="menuitem" type="button" onClick={() => { setOpen(false); fileRef.current?.click(); }}>
             Open airport file…
+          </button>
+          <button role="menuitem" type="button" onClick={() => { setOpen(false); imageRef.current?.click(); }}>
+            Trace a reference image…
           </button>
           {EMBEDDED ? (
             <p className="menu-note">Saving, exporting and printing are available when you run APD Maker from its repository.</p>
@@ -165,6 +169,7 @@ function FileMenu() {
           }
         }}
       />
+      <ReferenceFileInput inputRef={imageRef} />
     </div>
   );
 }

@@ -149,8 +149,29 @@ export interface AirportMeta {
   notes: string;
 }
 
+/** A picture to trace over, such as a satellite view or a scanned chart. Shown only while editing. */
+export interface ReferenceImage {
+  /** The image, as a data URL. */
+  src: string;
+  /** Its size in image pixels. */
+  pxWidth: number;
+  pxHeight: number;
+  /** Where its center sits, ft. */
+  center: Vec;
+  /** Feet per image pixel. */
+  ftPerPx: number;
+  /** Degrees clockwise. */
+  rotation: number;
+  /** 0 to 1. */
+  opacity: number;
+  visible: boolean;
+  /** The runway and real length the scale was last set from. */
+  scaledFrom?: { runway: string; length: number };
+}
+
 export interface AirportDoc {
   version: 1;
   meta: AirportMeta;
   features: Feature[];
+  reference?: ReferenceImage;
 }

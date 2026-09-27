@@ -926,6 +926,32 @@ input[type='range'] {
   color: var(--select);
 }
 
+.canvas-wrap.dropping {
+  outline: 3px dashed var(--select);
+  outline-offset: -6px;
+}
+
+.drop-hint {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--select);
+  color: #fff;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.calibrate-box {
+  padding: 8px 10px 2px;
+  margin-bottom: 8px;
+  border: 1px solid var(--select);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
 .smooth-box {
   display: flex;
   flex-direction: column;

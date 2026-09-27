@@ -35,6 +35,9 @@ export const bearing = (from: Vec, to: Vec): number =>
 /** Unit vector pointing along a bearing. */
 export const dirFromBearing = (b: number): Vec => ({ x: Math.sin(rad(b)), y: -Math.cos(rad(b)) });
 
+/** `p` moved k times as far from `c`. */
+export const scaleAround = (p: Vec, c: Vec, k: number): Vec => ({ x: c.x + (p.x - c.x) * k, y: c.y + (p.y - c.y) * k });
+
 export function rotateAround(p: Vec, c: Vec, degrees: number): Vec {
   const r = rad(degrees);
   const cos = Math.cos(r);
@@ -337,6 +340,15 @@ export function translateNode(n: PathNode, d: Vec): PathNode {
     p: add(n.p, d),
     in: n.in && add(n.in, d),
     out: n.out && add(n.out, d),
+  };
+}
+
+export function scaleNode(n: PathNode, c: Vec, k: number): PathNode {
+  return {
+    ...n,
+    p: scaleAround(n.p, c, k),
+    in: n.in && scaleAround(n.in, c, k),
+    out: n.out && scaleAround(n.out, c, k),
   };
 }
 

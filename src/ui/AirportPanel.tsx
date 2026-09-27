@@ -1,9 +1,9 @@
 import { derive } from '../model/derive';
 import { sheetLayout } from '../model/sheet';
-import { emptyDoc } from '../model/defaults';
 import { sampleDoc } from '../model/sample';
 import type { Frequency } from '../model/types';
 import { useStore } from '../store/store';
+import { ReferenceSection } from './ReferencePanel';
 import { Field, NumberInput, Row, Section, Segmented, TextInput, Toggle } from './fields';
 import { PlusIcon, TrashIcon } from './icons';
 
@@ -12,6 +12,7 @@ export function AirportPanel() {
   const doc = useStore((s) => s.doc);
   const patchMeta = useStore((s) => s.patchMeta);
   const loadDoc = useStore((s) => s.loadDoc);
+  const startBlank = useStore((s) => s.startBlank);
   const showToast = useStore((s) => s.showToast);
   const autoScale = sheetLayout({ ...doc, meta: { ...meta, textScale: undefined } }, derive(doc).bounds).textScale;
 
@@ -48,6 +49,8 @@ export function AirportPanel() {
           </Field>
         </Row>
       </Section>
+
+      <ReferenceSection />
 
       <Section title="Magnetic variation">
         <Row>
@@ -157,10 +160,7 @@ export function AirportPanel() {
           <button
             type="button"
             className="btn"
-            onClick={() => {
-              loadDoc(emptyDoc());
-              showToast('Started a blank airport. Undo brings the old one back.');
-            }}
+            onClick={startBlank}
           >
             Blank airport
           </button>

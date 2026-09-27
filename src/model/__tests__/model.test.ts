@@ -3,6 +3,8 @@ import { bearing, flatten, insertNode, nearestOnPolyline, pathSegments, bezierPo
 import { headingNumber, runwayInfos, toMagnetic } from '../runway';
 import { computeHoldLines } from '../holdShort';
 import { defaultEnd, emptyDoc, newRunway, newTaxiway, nextTaxiwayName } from '../defaults';
+import { scaleDoc } from '../featureOps';
+import { runwayLength } from '../runway';
 import { sampleDoc } from '../sample';
 import { formatDMS, niceCeil } from '../sheet';
 import type { AirportDoc, Runway } from '../types';
@@ -134,5 +136,29 @@ describe('sample and helpers', () => {
     expect(formatDMS(-112.5, 'lon')).toBe("112°30'W");
     expect(niceCeil(27.3)).toBe(28);
     expect(niceCeil(11.5)).toBe(12);
+  });
+});
+
+describe('scaling to a reference image', () => {
+  it('scales the drawing and the image together about a point, keeping real widths', () => {
+    // A runway traced 2,000 ft long over an image that is really 7,000 ft.
+    const rwy = newRunway({ x: 0, y: 0 }, { x: 2000, y: 0 }, 150);
+    const twy = newTaxiway([{ p: { x: 1000, y: 0 } }, { p: { x: 1000, y: -200 }, in: { x: 1000, y: -100 } }], 'A', 50);
+    const doc: AirportDoc = {
+      ...docWith(rwy, twy),
+      reference: { src: 'data:,', pxWidth: 1000, pxHeight: 500, center: { x: 1000, y: 100 }, ftPerPx: 3, rotation: 0, opacity: 0.5, visible: true },
+    };
+    const k = 7000 / 2000;
+    const out = scaleDoc(doc, { x: 1000, y: 0 }, k);
+    const [r, t] = out.features as [Runway, typeof twy];
+    expect(runwayLength(r)).toBeCloseTo(7000);
+    expect(r.a).toEqual({ x: -2500, y: 0 });
+    expect(r.width).toBe(150);
+    expect(t.width).toBe(50);
+    expect(t.nodes[1].p).toEqual({ x: 1000, y: -700 });
+    expect(t.nodes[1].in).toEqual({ x: 1000, y: -350 });
+    // The image grows with the drawing, so what was traced still sits on what it traced.
+    expect(out.reference!.ftPerPx).toBeCloseTo(10.5);
+    expect(out.reference!.center).toEqual({ x: 1000, y: 350 });
   });
 });

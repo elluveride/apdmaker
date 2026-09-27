@@ -31,6 +31,7 @@ import type {
 } from '../model/types';
 import { selectedFeature, useStore } from '../store/store';
 import { Checklist } from './Checklist';
+import { RealLengthField } from './ReferencePanel';
 import { Field, NumberInput, Row, Section, Segmented, Select, TextInput, Toggle } from './fields';
 import { ArrowDownIcon, ArrowUpIcon, CopyIcon, EyeIcon, SmoothIcon, TrashIcon } from './icons';
 
@@ -172,6 +173,7 @@ function RunwayEditor({ r, info }: { r: Runway; info?: RunwayInfo }) {
         <Field label="Length" htmlFor="rwy-len">
           <NumberInput id="rwy-len" value={L} onChange={setLength} step={50} min={100} digits={0} unit="ft" />
         </Field>
+        <RealLengthField r={r} />
         <Field label="Width" htmlFor="rwy-width">
           <Segmented
             size="sm"

@@ -1,6 +1,6 @@
-import { add, nodesCentroid, rotateAround, rotateNode, translateNode } from './geometry';
+import { add, nodesCentroid, rotateAround, rotateNode, scaleAround, scaleNode, translateNode } from './geometry';
 import { runwayTitle, type RunwayInfo } from './runway';
-import type { Feature, ID, Vec } from './types';
+import type { AirportDoc, Feature, ID, Vec } from './types';
 import { SYMBOL_NAMES } from './defaults';
 
 export function translateFeature(f: Feature, d: Vec): Feature {
@@ -47,6 +47,40 @@ export function rotateFeature(f: Feature, degrees: number): Feature {
     default:
       return f;
   }
+}
+
+/**
+ * Where a feature sits, k times as far from `c`. Only what was drawn scales;
+ * real sizes like widths and hold distances keep their feet.
+ */
+export function scaleFeature(f: Feature, c: Vec, k: number): Feature {
+  switch (f.kind) {
+    case 'runway':
+      return { ...f, a: scaleAround(f.a, c, k), b: scaleAround(f.b, c, k) };
+    case 'taxiway':
+    case 'area':
+      return { ...f, nodes: f.nodes.map((n) => scaleNode(n, c, k)) };
+    case 'label':
+    case 'symbol':
+      return { ...f, p: scaleAround(f.p, c, k) };
+    case 'hotspot':
+      return {
+        ...f,
+        center: scaleAround(f.center, c, k),
+        radius: f.radius * k,
+        labelOffset: { x: f.labelOffset.x * k, y: f.labelOffset.y * k },
+      };
+  }
+}
+
+/** The whole drawing and the reference image under it, k times the size about `c`. */
+export function scaleDoc(doc: AirportDoc, c: Vec, k: number): AirportDoc {
+  const ref = doc.reference;
+  return {
+    ...doc,
+    features: doc.features.map((f) => scaleFeature(f, c, k)),
+    reference: ref && { ...ref, center: scaleAround(ref.center, c, k), ftPerPx: ref.ftPerPx * k },
+  };
 }
 
 export function featureTitle(f: Feature, infos: Map<ID, RunwayInfo>): string {

@@ -1,5 +1,11 @@
 import { create } from 'zustand';
 import { emptyDoc, nextTaxiwayName, uid } from '../model/defaults';
+import { MAX_SCALE, MIN_SCALE } from '../editor/camera';
+import { EMBEDDED } from '../env';
+import { readReferenceImage } from '../io/reference';
+import { scaleDoc } from '../model/featureOps';
+import { mid } from '../model/geometry';
+import { runwayInfos, runwayLength, runwayTitle } from '../model/runway';
 import { sampleDoc } from '../model/sample';
 import {
   autoSmoothTaxiway,
@@ -9,7 +15,7 @@ import {
   runwayExits,
   type TurnStyle,
 } from '../model/smooth';
-import type { AirportDoc, AirportMeta, Feature, ID, SymbolType, Taxiway } from '../model/types';
+import type { AirportDoc, AirportMeta, Feature, ID, ReferenceImage, SymbolType, Taxiway } from '../model/types';
 
 export type ToolId =
   | 'select'
@@ -67,6 +73,8 @@ interface State {
   printing: boolean;
   /** How auto-smooth rounds turns: as drawn, or at the FAA minimum radius. */
   smoothTurns: TurnStyle;
+  /** Size of the editing canvas in screen pixels, for placing things in view. */
+  viewSize: { w: number; h: number };
 
   /** Save the current doc as an undo step. */
   checkpoint: () => void;
@@ -77,6 +85,8 @@ interface State {
   undo: () => void;
   redo: () => void;
   loadDoc: (doc: AirportDoc) => void;
+  /** A blank airport that keeps the reference image being traced, and the view on it. */
+  startBlank: () => void;
 
   addFeature: (f: Feature) => void;
   updateFeature: <F extends Feature>(id: ID, fn: (f: F) => F, key?: string) => void;
@@ -90,6 +100,13 @@ interface State {
   /** Set the angle a taxiway leaves the runway at and smooth it to that angle; undefined keeps the drawn angle. */
   setExitAngle: (id: ID, angle: number | undefined) => void;
   setSmoothTurns: (turns: TurnStyle) => void;
+  /** Read an image and put it under the drawing to trace over, filling the view. */
+  importReference: (file: Blob) => Promise<void>;
+  updateReference: (patch: Partial<ReferenceImage>, key?: string) => void;
+  removeReference: () => void;
+  /** Scale the reference image and everything drawn about runway `id` so it is `length` ft long. */
+  scaleToRunway: (id: ID, length: number) => void;
+  setViewSize: (size: { w: number; h: number }) => void;
 
   select: (id: ID | null, node?: number | null) => void;
   setTool: (tool: ToolId) => void;
@@ -113,6 +130,7 @@ interface State {
 const STORAGE_KEY = 'apdmaker.doc.v1';
 const WELCOME_KEY = 'apdmaker.welcomed';
 const TURNS_KEY = 'apdmaker.smoothTurns';
+const REFERENCE_KEY = 'apdmaker.reference.v1';
 const HISTORY_LIMIT = 200;
 
 function safeRead(key: string): string | null {
@@ -141,12 +159,21 @@ export function normalizeDoc(d: AirportDoc): AirportDoc {
   return { ...d, meta: { ...emptyDoc().meta, ...d.meta } };
 }
 
+/** The autosaved doc keeps its reference image under a key of its own; put it back, or drop it if it is gone. */
+function withSavedReference(doc: AirportDoc): AirportDoc {
+  if (!doc.reference) return doc;
+  const src = safeRead(REFERENCE_KEY);
+  if (src) return { ...doc, reference: { ...doc.reference, src } };
+  const { reference: _lost, ...rest } = doc;
+  return rest;
+}
+
 function initialDoc(): AirportDoc {
   const raw = safeRead(STORAGE_KEY);
   if (raw) {
     try {
       const parsed = JSON.parse(raw);
-      if (isAirportDoc(parsed)) return normalizeDoc(parsed);
+      if (isAirportDoc(parsed)) return withSavedReference(normalizeDoc(parsed));
     } catch {
       /* fall through to the sample */
     }
@@ -222,6 +249,7 @@ export const useStore = create<State>((set, get) => ({
   fontEpoch: 0,
   printing: false,
   smoothTurns: safeRead(TURNS_KEY) === 'tight' ? 'tight' : 'drawn',
+  viewSize: { w: 0, h: 0 },
 
   checkpoint: () =>
     set((s) => ({ past: pushPast(s.past, s.doc), future: [], lastKey: null })),
@@ -270,6 +298,18 @@ export const useStore = create<State>((set, get) => ({
   loadDoc: (doc) => {
     get().commit(() => doc);
     set({ selection: { id: null, node: null }, fitRequest: get().fitRequest + 1 });
+  },
+
+  startBlank: () => {
+    const { reference } = get().doc;
+    if (!reference) {
+      get().loadDoc(emptyDoc());
+      get().showToast('Started a blank airport. Undo brings the old one back.');
+      return;
+    }
+    get().commit(() => ({ ...emptyDoc(), reference }));
+    set({ selection: { id: null, node: null } });
+    get().showToast('Started a blank airport over the same reference image. Undo brings the old one back.');
   },
 
   addFeature: (f) => {
@@ -339,6 +379,64 @@ export const useStore = create<State>((set, get) => ({
     else if (t.exitAngle !== undefined) get().commit(() => next);
   },
 
+  importReference: async (file) => {
+    try {
+      const img = await readReferenceImage(file);
+      const { camera, viewSize } = get();
+      const w = viewSize.w || 1000;
+      const h = viewSize.h || 700;
+      const reference: ReferenceImage = {
+        ...img,
+        center: { x: camera.cx, y: camera.cy },
+        ftPerPx: (0.9 * Math.min(w / img.pxWidth, h / img.pxHeight)) / camera.scale,
+        rotation: 0,
+        opacity: 0.6,
+        visible: true,
+      };
+      get().commit((d) => ({ ...d, reference }));
+      get().showToast(
+        'Reference image added. Draw a runway along one in the picture, then type its real length in the runway’s Real length box to bring everything to scale.',
+      );
+    } catch (err) {
+      get().showToast(err instanceof Error ? err.message : 'Could not use that image.');
+    }
+  },
+
+  updateReference: (patch, key) => {
+    if (!get().doc.reference) return;
+    get().commit((d) => (d.reference ? { ...d, reference: { ...d.reference, ...patch } } : d), key && `ref:${key}`);
+  },
+
+  removeReference: () => {
+    if (!get().doc.reference) return;
+    get().commit(({ reference: _gone, ...d }) => d);
+    get().showToast('Reference image removed. Ctrl+Z brings it back.');
+  },
+
+  scaleToRunway: (id, length) => {
+    const { doc, camera } = get();
+    const r = doc.features.find((f) => f.id === id);
+    if (r?.kind !== 'runway' || !(length > 0)) return;
+    const k = length / runwayLength(r);
+    if (!Number.isFinite(k) || Math.abs(k - 1) < 1e-6) return;
+    const c = mid(r.a, r.b);
+    const title = runwayTitle(runwayInfos(doc).get(id));
+    get().commit(() => {
+      const scaled = scaleDoc(doc, c, k);
+      const ref = scaled.reference;
+      return ref ? { ...scaled, reference: { ...ref, scaledFrom: { runway: title, length } } } : scaled;
+    });
+    // Zoom with it, so the picture on screen doesn't jump.
+    const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, camera.scale / k));
+    set({ camera: { cx: c.x + (camera.cx - c.x) * k, cy: c.y + (camera.cy - c.y) * k, scale } });
+    const times = k >= 1 ? `${k.toPrecision(3)}×` : `1/${(1 / k).toPrecision(3)}`;
+    get().showToast(
+      `Runway ${title} is now ${length.toLocaleString('en-US')} ft: the reference image and everything drawn scaled by ${times}. Ctrl+Z undoes it.`,
+    );
+  },
+
+  setViewSize: (viewSize) => set({ viewSize }),
+
   select: (id, node = null) => set({ selection: { id, node } }),
   setTool: (tool) => set({ tool }),
   setSymbolType: (symbolType) => set({ symbolType }),
@@ -384,12 +482,39 @@ function offsetFeature(f: Feature, d: number): Feature {
   }
 }
 
-/* Autosave, debounced. */
+/*
+ * Autosave, debounced. A reference image is kept under its own key and only
+ * rewritten when it changes, so a large picture never stops the drawing
+ * itself from being saved.
+ */
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
+let savedReferenceSrc = safeRead(REFERENCE_KEY) ?? '';
+let warnedReferenceTooBig = false;
+
+function saveDoc(doc: AirportDoc) {
+  const ref = doc.reference;
+  safeWrite(STORAGE_KEY, JSON.stringify(ref ? { ...doc, reference: { ...ref, src: '' } } : doc));
+  const src = ref?.src ?? '';
+  if (src === savedReferenceSrc) return;
+  try {
+    if (src) localStorage.setItem(REFERENCE_KEY, src);
+    else localStorage.removeItem(REFERENCE_KEY);
+    savedReferenceSrc = src;
+  } catch {
+    if (warnedReferenceTooBig) return;
+    warnedReferenceTooBig = true;
+    useStore
+      .getState()
+      .showToast(
+        `The reference image is too large to keep after a reload.${EMBEDDED ? '' : ' Save the airport file to keep it.'}`,
+      );
+  }
+}
+
 useStore.subscribe((s, prev) => {
   if (s.doc === prev.doc) return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => safeWrite(STORAGE_KEY, JSON.stringify(s.doc)), 400);
+  saveTimer = setTimeout(() => saveDoc(s.doc), 400);
 });
 
 export const selectedFeature = (s: State): Feature | undefined =>

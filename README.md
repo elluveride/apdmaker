@@ -31,6 +31,16 @@ Everything runs in the browser. Work is saved automatically to local storage and
 
   Taxiways whose ends were attached to it slide along with it, hold-short lines update, smoothing twice changes nothing, and `Ctrl+Z` undoes it.
 
+### Tracing a picture
+
+Work from a satellite view, photo or scanned chart:
+
+1. Paste a screenshot, drop an image on the canvas, or use **File → Trace a reference image…**. It fills the view, under everything you draw.
+2. In **Airport → Reference image**, turn it so true north is straight up if it isn't, and set how faint it is.
+3. Draw a runway along one in the picture, then type that runway's real length in its **Real length** box. The picture and everything drawn scale together around the runway, so the rest of the airport you trace is to scale. Widths and hold distances are real sizes and keep their feet.
+
+The picture shows only while editing. It never appears in View mode, exports or prints. It is saved with the airport file and kept after a reload.
+
 `Ctrl+Z` / `Ctrl+Shift+Z` undo and redo, `Ctrl+D` duplicates, arrow keys nudge 10 ft (`Shift`: 100 ft), `?` lists every shortcut.
 
 ## What's computed for you

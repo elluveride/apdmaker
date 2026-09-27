@@ -18,7 +18,8 @@ const has = (d: AirportDoc, kind: string) => d.features.some((f) => f.kind === k
 const STEPS: Step[] = [
   {
     title: 'Draw a runway',
-    detail: 'Drag from threshold to threshold. Numbers come from the magnetic heading.',
+    detail:
+      'Drag from threshold to threshold. Numbers come from the magnetic heading. Tracing a picture? Paste or drop it on the canvas first.',
     done: (d) => has(d, 'runway'),
     icon: <RunwayIcon size={18} />,
     tool: 'runway',

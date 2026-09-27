@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { derive } from '../model/derive';
 import { padBox } from '../model/geometry';
-import type { Vec } from '../model/types';
+import { firstImage } from '../io/reference';
+import type { ReferenceImage, Vec } from '../model/types';
 import { ChartLayer } from '../render/ChartLayer';
 import { SurfaceLayer } from '../render/SurfaceLayer';
 import { CHART, SURFACE } from '../render/palette';
@@ -40,6 +41,7 @@ export function EditorCanvas({ interactive = true }: { interactive?: boolean }) 
   const downTarget = useRef<Element | null>(null);
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [panning, setPanning] = useState(false);
+  const [dropping, setDropping] = useState(false);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -51,6 +53,24 @@ export function EditorCanvas({ interactive = true }: { interactive?: boolean }) 
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (interactive && size.w > 0) useStore.getState().setViewSize(size);
+  }, [interactive, size]);
+
+  // Paste a screenshot to trace over it.
+  useEffect(() => {
+    if (!interactive) return;
+    const onPaste = (e: ClipboardEvent) => {
+      if (isTyping(e.target)) return;
+      const image = firstImage(e.clipboardData?.files);
+      if (!image) return;
+      e.preventDefault();
+      void useStore.getState().importReference(image);
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [interactive]);
 
   // Fit when asked, and on the very first measurement; later mounts keep the camera.
   const fittedFor = useRef(cameraReady ? fitRequest : -1);
@@ -205,8 +225,31 @@ export function EditorCanvas({ interactive = true }: { interactive?: boolean }) 
         ? 'default'
         : 'crosshair';
 
+  const dragsFiles = (e: React.DragEvent) => interactive && Array.from(e.dataTransfer.types).includes('Files');
+
   return (
-    <div className="canvas-wrap" ref={wrapRef} style={{ cursor }}>
+    <div
+      className={`canvas-wrap${dropping ? ' dropping' : ''}`}
+      ref={wrapRef}
+      style={{ cursor }}
+      onDragOver={(e) => {
+        if (!dragsFiles(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        setDropping(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false);
+      }}
+      onDrop={(e) => {
+        setDropping(false);
+        if (!dragsFiles(e)) return;
+        e.preventDefault();
+        const image = firstImage(e.dataTransfer.files);
+        if (image) void useStore.getState().importReference(image);
+        else useStore.getState().showToast('Drop an image (PNG, JPEG, WebP or GIF) to trace over it.');
+      }}
+    >
       {size.w > 0 && (
         <svg
           ref={svgRef}
@@ -223,6 +266,7 @@ export function EditorCanvas({ interactive = true }: { interactive?: boolean }) 
         >
           <rect width={size.w} height={size.h} fill={style === 'chart' ? CHART.paper : SURFACE.grass} />
           <g transform={cameraTransform(camera, size)}>
+            {interactive && doc.reference?.visible && <ReferenceLayer image={doc.reference} />}
             {grid && interactive && <Grid camera={camera} size={size} surface={style === 'surface'} />}
             {style === 'chart' ? (
               <ChartLayer doc={doc} derived={derived} />
@@ -238,7 +282,27 @@ export function EditorCanvas({ interactive = true }: { interactive?: boolean }) 
         </svg>
       )}
       {interactive && size.w > 0 && <RenameBox size={size} />}
+      {dropping && <div className="drop-hint">Drop to trace over this image</div>}
     </div>
+  );
+}
+
+/** The picture being traced, under everything else. */
+function ReferenceLayer({ image }: { image: ReferenceImage }) {
+  const w = image.pxWidth * image.ftPerPx;
+  const h = image.pxHeight * image.ftPerPx;
+  return (
+    <image
+      href={image.src}
+      x={-w / 2}
+      y={-h / 2}
+      width={w}
+      height={h}
+      preserveAspectRatio="none"
+      opacity={image.opacity}
+      transform={`translate(${image.center.x} ${image.center.y}) rotate(${image.rotation})`}
+      pointerEvents="none"
+    />
   );
 }
 
