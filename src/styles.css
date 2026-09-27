@@ -636,6 +636,19 @@ button:disabled {
   overscroll-behavior: contain;
 }
 
+.save-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.save-bar .btn {
+  justify-content: center;
+}
+
 .inspector,
 .checklist {
   display: flex;

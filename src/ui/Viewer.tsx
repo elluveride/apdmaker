@@ -1,31 +1,25 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { EditorCanvas } from '../editor/Canvas';
-import { embeddedFontCss, exportSheetPng, exportSheetSvg, exportSurfacePng } from '../io/files';
+import { embeddedFontCss, exportSheetJpg, exportSheetPng, exportSheetSvg, exportSurfacePng } from '../io/files';
 import { derive } from '../model/derive';
 import { SheetSvg } from '../render/Sheet';
 import { EMBEDDED } from '../env';
 import { useStore } from '../store/store';
 import { DownloadIcon, FitIcon, MinusIcon, PlusIcon, PrintIcon } from './icons';
-
-async function attempt(fn: () => Promise<void>) {
-  try {
-    await fn();
-  } catch (err) {
-    useStore.getState().showToast(err instanceof Error ? err.message : 'Export failed.');
-  }
-}
+import { runExport, useCanSave } from './SaveBar';
 
 export function Viewer() {
   const style = useStore((s) => s.style);
   // Warm the font cache so an export click is fast enough to keep its download gesture.
   useEffect(() => {
-    if (!EMBEDDED) void embeddedFontCss();
+    void embeddedFontCss();
   }, []);
   return style === 'chart' ? <SheetViewer /> : <SurfaceViewer />;
 }
 
 function SurfaceViewer() {
   const doc = useStore((s) => s.doc);
+  const canSave = useCanSave();
   return (
     <div className="viewer surface-viewer">
       <EditorCanvas interactive={false} />
@@ -33,8 +27,8 @@ function SurfaceViewer() {
         <button type="button" className="btn" onClick={() => useStore.getState().requestFit()}>
           <FitIcon size={16} /> Fit
         </button>
-        {!EMBEDDED && (
-          <button type="button" className="btn" onClick={() => attempt(() => exportSurfacePng(doc))}>
+        {canSave && (
+          <button type="button" className="btn" onClick={() => runExport(() => exportSurfacePng(doc))}>
             <DownloadIcon size={16} /> PNG
           </button>
         )}
@@ -51,6 +45,7 @@ interface View {
 
 function SheetViewer() {
   const doc = useStore((s) => s.doc);
+  const canSave = useCanSave();
   const fitRequest = useStore((s) => s.fitRequest);
   const derived = useMemo(() => derive(doc), [doc]);
   const page = derived.sheet;
@@ -127,18 +122,23 @@ function SheetViewer() {
         <button type="button" className="icon-btn" onClick={() => zoomBy(1.25)} aria-label="Zoom in">
           <PlusIcon size={18} />
         </button>
-        {!EMBEDDED && (
+        {canSave && (
           <>
             <span className="divider" />
-            <button type="button" className="btn" onClick={() => attempt(() => exportSheetSvg(doc))}>
-              <DownloadIcon size={16} /> SVG
+            <button type="button" className="btn" onClick={() => runExport(() => exportSheetJpg(doc))}>
+              <DownloadIcon size={16} /> JPG
             </button>
-            <button type="button" className="btn" onClick={() => attempt(() => exportSheetPng(doc))}>
+            <button type="button" className="btn" onClick={() => runExport(() => exportSheetPng(doc))}>
               <DownloadIcon size={16} /> PNG
             </button>
-            <button type="button" className="btn" onClick={() => useStore.getState().setPrinting(true)}>
-              <PrintIcon size={16} /> Print
+            <button type="button" className="btn" onClick={() => runExport(() => exportSheetSvg(doc))}>
+              <DownloadIcon size={16} /> SVG
             </button>
+            {!EMBEDDED && (
+              <button type="button" className="btn" onClick={() => useStore.getState().setPrinting(true)}>
+                <PrintIcon size={16} /> Print
+              </button>
+            )}
           </>
         )}
       </div>

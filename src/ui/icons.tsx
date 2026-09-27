@@ -160,6 +160,21 @@ export const DownloadIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const SaveIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4Z" />
+    <path d="M8 4v5h7V4M8 20v-6h8v6" />
+  </Icon>
+);
+
+export const ImageIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x={3.5} y={5} width={17} height={14} rx={1.5} />
+    <circle cx={9} cy={10} r={1.6} />
+    <path d="m4 17 5-4.5 3.5 3 3-2.5L20 17" />
+  </Icon>
+);
+
 export const PrintIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M7 9V4h10v5M7 17H5a1.5 1.5 0 0 1-1.5-1.5v-5A1.5 1.5 0 0 1 5 9h14a1.5 1.5 0 0 1 1.5 1.5v5A1.5 1.5 0 0 1 19 17h-2" />

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { sampleDoc } from '../model/sample';
-import { exportJson, exportSheetPng, exportSheetSvg, exportSurfacePng, readDocFile } from '../io/files';
+import { exportJson, exportSheetJpg, exportSheetPng, exportSheetSvg, exportSurfacePng, readDocFile } from '../io/files';
 import { EMBEDDED } from '../env';
 import { useStore } from '../store/store';
 import { ReferenceFileInput } from './ReferencePanel';
+import { runExport, useCanSave } from './SaveBar';
 import { Segmented } from './fields';
 import { BrandMark, HelpIcon, MenuIcon, PanelIcon, RedoIcon, UndoIcon } from './icons';
 
@@ -89,6 +90,7 @@ function FileMenu() {
   const ref = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
+  const canSave = useCanSave();
   const s = useStore.getState;
 
   useEffect(() => {
@@ -128,27 +130,32 @@ function FileMenu() {
           <button role="menuitem" type="button" onClick={() => { setOpen(false); imageRef.current?.click(); }}>
             Trace a reference image…
           </button>
-          {EMBEDDED ? (
-            <p className="menu-note">Saving, exporting and printing are available when you run APD Maker from its repository.</p>
-          ) : (
+          {canSave ? (
             <>
-              <button role="menuitem" type="button" onClick={run(() => exportJson(s().doc))}>
+              <button role="menuitem" type="button" onClick={run(() => runExport(() => exportJson(s().doc)))}>
                 Save airport file (.apd.json)
               </button>
               <hr />
-              <button role="menuitem" type="button" onClick={run(() => exportSheetSvg(s().doc))}>
-                Export chart · SVG
+              <button role="menuitem" type="button" onClick={run(() => runExport(() => exportSheetJpg(s().doc)))}>
+                Export chart · JPG 300 dpi
               </button>
-              <button role="menuitem" type="button" onClick={run(() => exportSheetPng(s().doc))}>
+              <button role="menuitem" type="button" onClick={run(() => runExport(() => exportSheetPng(s().doc)))}>
                 Export chart · PNG 300 dpi
               </button>
-              <button role="menuitem" type="button" onClick={run(() => exportSurfacePng(s().doc))}>
+              <button role="menuitem" type="button" onClick={run(() => runExport(() => exportSheetSvg(s().doc)))}>
+                Export chart · SVG
+              </button>
+              <button role="menuitem" type="button" onClick={run(() => runExport(() => exportSurfacePng(s().doc)))}>
                 Export surface view · PNG
               </button>
-              <button role="menuitem" type="button" onClick={run(() => s().setPrinting(true))}>
-                Print chart…
-              </button>
+              {!EMBEDDED && (
+                <button role="menuitem" type="button" onClick={run(() => s().setPrinting(true))}>
+                  Print chart…
+                </button>
+              )}
             </>
+          ) : (
+            <p className="menu-note">Saving and exporting aren’t available in this view. Run APD Maker from its repository to save files.</p>
           )}
         </div>
       )}

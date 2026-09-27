@@ -5,6 +5,7 @@ import { SheetSvg } from '../render/Sheet';
 import { SurfaceLayer } from '../render/SurfaceLayer';
 import { SURFACE } from '../render/palette';
 import { isAirportDoc, normalizeDoc } from '../store/store';
+import { saveFile, type SaveOutcome } from './save';
 
 const FONT_CSS_URL = 'https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&display=swap';
 
@@ -83,18 +84,8 @@ export async function surfaceSvgString(doc: AirportDoc, maxPx = 4000): Promise<{
   return { svg: withFonts(await render(el), await embeddedFontCss()), w, h };
 }
 
-export function download(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
-}
-
-export async function svgToPng(svg: string, w: number, h: number): Promise<Blob> {
+/** Rasterize an SVG on white: PNG by default, or JPEG. */
+export async function svgToImage(svg: string, w: number, h: number, type: 'image/png' | 'image/jpeg' = 'image/png'): Promise<Blob> {
   const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
   try {
     const img = new Image();
@@ -109,7 +100,7 @@ export async function svgToPng(svg: string, w: number, h: number): Promise<Blob>
     ctx.fillRect(0, 0, w, h);
     ctx.drawImage(img, 0, 0, w, h);
     return await new Promise((resolve, reject) =>
-      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG encoding failed'))), 'image/png'),
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not encode the image.'))), type, 0.92),
     );
   } finally {
     URL.revokeObjectURL(url);
@@ -118,26 +109,34 @@ export async function svgToPng(svg: string, w: number, h: number): Promise<Blob>
 
 const slug = (doc: AirportDoc) => (doc.meta.ident || 'airport').toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-export async function exportSheetSvg(doc: AirportDoc): Promise<void> {
+export async function exportSheetSvg(doc: AirportDoc): Promise<SaveOutcome> {
   const svg = await sheetSvgString(doc);
-  download(new Blob([svg], { type: 'image/svg+xml' }), `${slug(doc)}-airport-diagram.svg`);
+  return saveFile(new Blob([svg], { type: 'image/svg+xml' }), `${slug(doc)}-airport-diagram.svg`);
 }
 
-export async function exportSheetPng(doc: AirportDoc, dpi = 300): Promise<void> {
+/** The chart sheet as a raster image at `dpi`. */
+async function sheetImage(doc: AirportDoc, type: 'image/png' | 'image/jpeg', dpi: number): Promise<Blob> {
   const svg = await sheetSvgString(doc);
   const { width, height } = derive(doc).sheet;
   const k = dpi / 72;
-  const png = await svgToPng(svg, Math.round(width * k), Math.round(height * k));
-  download(png, `${slug(doc)}-airport-diagram.png`);
+  return svgToImage(svg, Math.round(width * k), Math.round(height * k), type);
 }
 
-export async function exportSurfacePng(doc: AirportDoc): Promise<void> {
+export async function exportSheetPng(doc: AirportDoc, dpi = 300): Promise<SaveOutcome> {
+  return saveFile(await sheetImage(doc, 'image/png', dpi), `${slug(doc)}-airport-diagram.png`);
+}
+
+export async function exportSheetJpg(doc: AirportDoc, dpi = 300): Promise<SaveOutcome> {
+  return saveFile(await sheetImage(doc, 'image/jpeg', dpi), `${slug(doc)}-airport-diagram.jpg`);
+}
+
+export async function exportSurfacePng(doc: AirportDoc): Promise<SaveOutcome> {
   const { svg, w, h } = await surfaceSvgString(doc);
-  download(await svgToPng(svg, w, h), `${slug(doc)}-surface.png`);
+  return saveFile(await svgToImage(svg, w, h), `${slug(doc)}-surface.png`);
 }
 
-export function exportJson(doc: AirportDoc): void {
-  download(new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' }), `${slug(doc)}.apd.json`);
+export function exportJson(doc: AirportDoc): Promise<SaveOutcome> {
+  return saveFile(new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' }), `${slug(doc)}.apd.json`);
 }
 
 export async function readDocFile(file: File): Promise<AirportDoc> {

@@ -2,7 +2,7 @@
 
 Draw custom airport diagrams that look like FAA charts (the *Airport Diagram* pages in the Terminal Procedures Publication), then view them as a finished chart sheet or as a simple surface view with painted markings.
 
-Everything runs in the browser. Work is saved automatically to local storage and can be saved and opened as `.apd.json` files.
+Everything runs in the browser. Work is saved automatically to local storage. The bar at the bottom of the sidebar has **Save .json**, which saves the airport file you can open again later, and **Export .jpg**, which exports the chart sheet at 300 dpi. Both are there on every tab.
 
 ## Drawing
 
@@ -67,7 +67,7 @@ Start with a runway, then add more in layers. The **Inspect** panel's checklist 
 
 - **Edit · FAA chart**: black hard-surface runways, gray taxiways and aprons, black buildings, runway numbers, magnetic headings, `LENGTH X WIDTH` labels and threshold elevations.
 - **Edit · Surface**: pavement with threshold bars, designators, centerlines, aiming points, touchdown zone bars, side stripes, displaced-threshold arrows, blast-pad chevrons, taxiway centerlines, hold-short markings and signs.
-- **View**: the full chart sheet with title block, frequency box, `FIELD ELEV` box, north and magnetic arrows with variation, scale and coordinate ticks. Export it as SVG or 300 dpi PNG, or print it at TPP page size (5.375 × 8.25 in). The surface view can be exported as PNG.
+- **View**: the full chart sheet with title block, frequency box, `FIELD ELEV` box, north and magnetic arrows with variation, scale and coordinate ticks. Export it as a 300 dpi JPG or PNG, or as SVG, or print it at TPP page size (5.375 × 8.25 in). The surface view can be exported as PNG.
 
 Symbology follows the FAA airport diagram legend, marking dimensions follow AC 150/5340-1M, and taxiway turn geometry follows AC 150/5300-13A. Charts made here are for fun and illustration. **Not for navigation.**
 
@@ -93,6 +93,6 @@ src/
   io/       SVG / PNG / JSON export and import
 ```
 
-Build with `VITE_EMBEDDED=true` for sandboxed frames that block downloads and printing; those controls are then hidden.
+Build with `VITE_EMBEDDED=true` for sandboxed frames that block downloads and printing, such as a claude.ai artifact. Printing is then hidden. Files are saved through the viewer's save prompt, from the artifact's `downloads` capability. Where the viewer doesn't offer one, saving is hidden too.
 
 To publish on GitHub Pages, set **Settings → Pages → Source** to *GitHub Actions*, then run the **Deploy to GitHub Pages** workflow.

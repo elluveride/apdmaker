@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { emptyDoc, nextTaxiwayName, uid } from '../model/defaults';
 import { MAX_SCALE, MIN_SCALE } from '../editor/camera';
-import { EMBEDDED } from '../env';
 import { readReferenceImage } from '../io/reference';
 import { scaleDoc } from '../model/featureOps';
 import { mid } from '../model/geometry';
@@ -506,7 +505,7 @@ function saveDoc(doc: AirportDoc) {
     useStore
       .getState()
       .showToast(
-        `The reference image is too large to keep after a reload.${EMBEDDED ? '' : ' Save the airport file to keep it.'}`,
+        'The reference image is too large to keep after a reload. Save the airport file (.json) to keep it.',
       );
   }
 }
