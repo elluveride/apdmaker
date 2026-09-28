@@ -95,4 +95,4 @@ src/
 
 Build with `VITE_EMBEDDED=true` for sandboxed frames that block downloads and printing, such as a claude.ai artifact. Printing is then hidden. A dialog then shows each file to save by hand: right-click the chart image to save it, or copy the airport file's text. Build with `VITE_ARTIFACT_RUNTIME=true` too, and publish with the artifact's `downloads` capability, to save through the viewer's save prompt instead.
 
-To publish on GitHub Pages, set **Settings → Pages → Source** to *GitHub Actions*, then run the **Deploy to GitHub Pages** workflow.
+To publish on GitHub Pages, set **Settings → Pages → Source** to *GitHub Actions*. The **Deploy to GitHub Pages** workflow then publishes every push to `main`, and it can also be run by hand. A custom domain goes in the same settings page; GitHub ignores a `CNAME` file when it publishes from Actions.

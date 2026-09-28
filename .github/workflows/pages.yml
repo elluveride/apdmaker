@@ -1,9 +1,11 @@
-# Publishes the app to GitHub Pages. Enable Pages first:
-# Settings -> Pages -> Build and deployment -> Source: GitHub Actions.
-# Then run this workflow from the Actions tab.
+# Publishes the app to GitHub Pages on every push to main, or on demand.
+# Needs Settings -> Pages -> Build and deployment -> Source: GitHub Actions.
+# A custom domain is set there too; with this source GitHub ignores a CNAME file.
 name: Deploy to GitHub Pages
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
