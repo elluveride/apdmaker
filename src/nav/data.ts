@@ -15,6 +15,8 @@ export interface RealAirport extends LatLon {
   country: string;
   city: string;
   iata: string;
+  /** ISO region, e.g. "US-AZ". */
+  region: string;
 }
 
 export type NavaidType = 'VOR' | 'VOR-DME' | 'VORTAC' | 'TACAN' | 'DME' | 'NDB' | 'NDB-DME';
@@ -64,6 +66,7 @@ export const airportFromRow = (r: Row): RealAirport => ({
   country: r[6] as string,
   city: r[7] as string,
   iata: r[8] as string,
+  region: (r[9] as string) ?? '',
 });
 
 export const navaidFromRow = (r: Row): Navaid => ({

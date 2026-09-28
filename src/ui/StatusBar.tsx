@@ -25,6 +25,18 @@ export function StatusBar() {
     hint = 'Click where the other end of the runway should be';
   }
 
+  if (mode === 'map' || mode === 'procedures') {
+    return (
+      <footer className="statusbar">
+        <span className="hint">
+          {mode === 'map'
+            ? 'Scroll or pinch to zoom · drag to pan · click an airport, navaid or fix for details'
+            : 'Pick a procedure on the left, edit its routes on the right; the chart updates as you go'}
+        </span>
+      </footer>
+    );
+  }
+
   let coords = '';
   if (cursor) {
     if (meta.refLat !== undefined && meta.refLon !== undefined) {

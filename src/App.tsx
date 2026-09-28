@@ -7,6 +7,8 @@ import { AirportPanel } from './ui/AirportPanel';
 import { Inspector } from './ui/Inspector';
 import { LayersPanel } from './ui/LayersPanel';
 import { HandOff, SaveBar } from './ui/SaveBar';
+import { MapView } from './map/MapView';
+import { ProceduresView } from './proc/ProceduresView';
 import { Library } from './ui/Library';
 import { Help, Toast, Welcome } from './ui/Overlays';
 import { StatusBar } from './ui/StatusBar';
@@ -85,7 +87,11 @@ export function App() {
       <div className={`app mode-${mode}`}>
         <TopBar />
         <main className={`workspace ${mode === 'edit' && panelOpen ? 'with-panel' : ''}`}>
-          {mode === 'edit' ? (
+          {mode === 'map' ? (
+            <MapView />
+          ) : mode === 'procedures' ? (
+            <ProceduresView />
+          ) : mode === 'edit' ? (
             <>
               <Toolbar />
               <div className="stage">

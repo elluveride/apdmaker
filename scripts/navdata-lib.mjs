@@ -84,7 +84,7 @@ const AIRPORT_TYPES = {
 
 /**
  * OurAirports airports as compact rows [ident, type, name, lat, lon, elevation,
- * country, municipality, iata], split into the always-loaded large and medium
+ * country, municipality, iata, region], split into the always-loaded large and medium
  * airports and 10-degree tiles of the rest. Closed fields and balloonports are left out.
  */
 export function packAirports(records) {
@@ -95,7 +95,7 @@ export function packAirports(records) {
     const lat = num(r.latitude_deg);
     const lon = num(r.longitude_deg);
     if (!type || lat == null || lon == null) continue;
-    const row = [r.ident, type, r.name, round(lat, 5), round(lon, 5), num(r.elevation_ft), r.iso_country, r.municipality, r.iata_code || ''];
+    const row = [r.ident, type, r.name, round(lat, 5), round(lon, 5), num(r.elevation_ft), r.iso_country, r.municipality, r.iata_code || '', r.iso_region || ''];
     if (type === 'L' || type === 'M') major.push(row);
     else (tiles[tileKey(lat, lon, 10)] ??= []).push(row);
   }

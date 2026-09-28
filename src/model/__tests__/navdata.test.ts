@@ -32,11 +32,11 @@ describe('navdata build helpers', () => {
     expect(tileKey(33.4, -112.0, 10)).toBe('30_-120');
     expect(tileKey(-0.1, 0.1, 5)).toBe('-5_0');
     const airports = packAirports([
-      { ident: 'KPHX', type: 'large_airport', name: 'Phoenix Sky Harbor', latitude_deg: '33.43429', longitude_deg: '-112.01159', elevation_ft: '1135', iso_country: 'US', municipality: 'Phoenix', iata_code: 'PHX' },
+      { ident: 'KPHX', type: 'large_airport', name: 'Phoenix Sky Harbor', latitude_deg: '33.43429', longitude_deg: '-112.01159', elevation_ft: '1135', iso_country: 'US', municipality: 'Phoenix', iata_code: 'PHX', iso_region: 'US-AZ' },
       { ident: 'AZ01', type: 'small_airport', name: 'Ranch', latitude_deg: '34.1', longitude_deg: '-111.2', elevation_ft: '', iso_country: 'US', municipality: '', iata_code: '' },
       { ident: 'OLD', type: 'closed', name: 'Gone', latitude_deg: '1', longitude_deg: '1', elevation_ft: '', iso_country: 'US', municipality: '', iata_code: '' },
     ]);
-    expect(airports.major).toEqual([['KPHX', 'L', 'Phoenix Sky Harbor', 33.43429, -112.01159, 1135, 'US', 'Phoenix', 'PHX']]);
+    expect(airports.major).toEqual([['KPHX', 'L', 'Phoenix Sky Harbor', 33.43429, -112.01159, 1135, 'US', 'Phoenix', 'PHX', 'US-AZ']]);
     expect(Object.keys(airports.tiles)).toEqual(['30_-120']);
     const fixes = packFixes([{ FIX_ID: 'BLH  ', LAT_DECIMAL: '33.6', LONG_DECIMAL: '-114.7', STATE_CODE: 'CA', FIX_USE_CODE: 'WP ' }]);
     expect(fixes).toEqual({ '30_-115': [['BLH', 33.6, -114.7, 'CA', 'WP']] });

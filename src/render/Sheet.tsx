@@ -48,6 +48,8 @@ export function SheetSvg({ doc, derived, width, height }: Props) {
   const freqH = freqLines.length * freqSize * 1.3 + 6;
   const noteSize = 4.4;
   const notes = meta.notes ? wrap(meta.notes, Math.max(freqW, 120) - 4, noteSize) : [];
+  // Where the frequency box and its notes end, so latitude labels start below them.
+  const boxBottom = freqLines.length ? fr.minY + 7 + freqH + (notes.length ? 7 + notes.length * noteSize * 1.25 : 0) : fr.minY;
 
   const varText = `VAR ${Math.abs(meta.magVar).toFixed(1)}° ${meta.magVar >= 0 ? 'E' : 'W'}`;
   const scaleFt = niceLength(L.scale, 70);
@@ -103,6 +105,7 @@ export function SheetSvg({ doc, derived, width, height }: Props) {
           refLat={meta.refLat}
           refLon={meta.refLon}
           frame={fr}
+          clearTop={Math.max(fr.minY + 60, boxBottom + 5)}
           toPage={toPage}
           toWorld={toWorld}
         />
@@ -209,12 +212,14 @@ interface GraticuleProps {
   refLat: number;
   refLon: number;
   frame: { minX: number; minY: number; maxX: number; maxY: number };
+  /** Latitude labels go below this, clear of the frequency box and its notes. */
+  clearTop: number;
   toPage: (x: number, y: number) => { x: number; y: number };
   toWorld: (px: number, py: number) => { x: number; y: number };
 }
 
 /** Coordinate ticks every 6 seconds, labelled every 30 seconds or minute (FAA airport diagram convention). */
-function Graticule({ refLat, refLon, frame, toPage, toWorld }: GraticuleProps) {
+function Graticule({ refLat, refLon, frame, clearTop, toPage, toWorld }: GraticuleProps) {
   const topLeft = worldToLatLon(toWorld(frame.minX, frame.minY), refLat, refLon);
   const bottomRight = worldToLatLon(toWorld(frame.maxX, frame.maxY), refLat, refLon);
   const latSpan = (topLeft.lat - bottomRight.lat) * 3600;
@@ -230,8 +235,8 @@ function Graticule({ refLat, refLon, frame, toPage, toWorld }: GraticuleProps) {
     ticks.push(
       <path key={`la${s}`} d={`M${frame.minX} ${f(y)}h${len}M${frame.maxX} ${f(y)}h${-len}`} stroke={CHART.ink} strokeWidth={0.45} />,
     );
-    // Keep latitude labels out of the frequency box band and the longitude labels.
-    if (major && y > frame.minY + 60 && y < frame.maxY - 18) {
+    // Keep latitude labels out of the frequency box and its notes, and off the longitude labels.
+    if (major && y > clearTop && y < frame.maxY - 18) {
       ticks.push(
         <text key={`lt${s}`} x={frame.minX + 8} y={f(y)} fontSize={4.2} fontWeight={500} dominantBaseline="central" fill={CHART.ink}>
           {formatDMS(s / 3600, 'lat')}

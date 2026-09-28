@@ -35,11 +35,13 @@ export function TopBar() {
           options={[
             { value: 'edit', label: 'Edit', title: 'Draw and edit (P toggles)' },
             { value: 'view', label: 'View', title: 'See the finished result (P toggles)' },
+            { value: 'procedures', label: 'SIDs & STARs', title: 'Build departure and arrival procedures' },
+            { value: 'map', label: 'Map', title: 'Real and your airports, navaids and fixes on a map' },
           ]}
           onChange={(m) => s().setMode(m)}
           label="Mode"
         />
-        <Segmented
+        {(mode === 'edit' || mode === 'view') && <Segmented
           value={style}
           options={[
             {
@@ -56,7 +58,7 @@ export function TopBar() {
           ]}
           onChange={(v) => s().setStyle(v)}
           label="Drawing style"
-        />
+        />}
       </div>
 
       <div className="topbar-right">
