@@ -1,4 +1,5 @@
-# Publishes the app to GitHub Pages on every push to main, or on demand.
+# Publishes the app to GitHub Pages on every push to main, weekly (so the
+# FAA data, which changes every 28 days, stays current), or on demand.
 # Needs Settings -> Pages -> Build and deployment -> Source: GitHub Actions.
 # A custom domain is set there too; with this source GitHub ignores a CNAME file.
 name: Deploy to GitHub Pages
@@ -6,6 +7,8 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: '17 6 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -30,6 +33,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: node scripts/navdata.mjs
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
