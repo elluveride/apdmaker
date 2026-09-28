@@ -173,6 +173,274 @@ button:disabled {
 }
 
 /* ------------------------------------------------------------------ */
+/* SIDs and STARs                                                      */
+/* ------------------------------------------------------------------ */
+
+.procedures-view {
+  display: grid;
+  grid-template-columns: 230px 1fr 372px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.proc-list {
+  overflow-y: auto;
+  padding: 14px;
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.proc-group {
+  margin-bottom: 18px;
+}
+
+.proc-group h3 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.proc-group ul {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.proc-group li button {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proc-group li button:hover {
+  background: var(--panel-2);
+}
+
+.proc-group li button.on {
+  background: var(--panel-2);
+  box-shadow: inset 3px 0 0 var(--select);
+}
+
+.proc-group li strong {
+  font-size: 13px;
+}
+
+.proc-group li .mono {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.proc-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 10px;
+  border: 1px solid var(--select);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.proc-stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.proc-page {
+  position: absolute;
+  inset: 16px 16px 72px;
+  display: grid;
+  place-items: center;
+}
+
+.proc-page svg {
+  max-width: 100%;
+  max-height: 100%;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.18);
+}
+
+.proc-empty {
+  display: grid;
+  place-content: center;
+  height: 100%;
+  text-align: center;
+}
+
+.proc-editor {
+  overflow-y: auto;
+}
+
+.route-card {
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+
+.route-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.route-name {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.route-hint {
+  margin: 6px 0;
+}
+
+.legs {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+
+.leg {
+  margin-bottom: 8px;
+}
+
+.leg-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.leg-heading {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+}
+
+.leg-heading .num {
+  width: 74px;
+}
+
+.leg-heading .num input {
+  padding-right: 18px;
+}
+
+.leg-tools {
+  display: flex;
+  margin-left: auto;
+}
+
+.leg-tools .icon-btn {
+  width: 24px;
+  height: 24px;
+  font-size: 13px;
+}
+
+.fix-input {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.fix-input input {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+.fix-kind {
+  color: var(--muted);
+}
+
+.fix-kind.missing {
+  color: #c0392b;
+}
+
+.leg-limits {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.leg-limits label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.leg-limits .num input {
+  padding-right: 22px;
+}
+
+.proc-fixes {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.proc-fixes li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.proc-fixes .mono {
+  width: 46px;
+  font-weight: 600;
+}
+
+.proc-fixes .btn {
+  margin-left: auto;
+}
+
+.custom-fix h4 {
+  margin: 4px 0 8px;
+  font-size: 13px;
+}
+
+.custom-fix .segmented {
+  margin: 4px 0;
+}
+
+.proc-notes {
+  width: 100%;
+  min-height: 70px;
+  resize: vertical;
+}
+
+.proc-danger {
+  padding: 12px 16px 24px;
+}
+
+@media (max-width: 1100px) {
+  .procedures-view {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 60vh auto;
+    overflow-y: auto;
+  }
+
+  .proc-list,
+  .proc-editor {
+    border: 0;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Map                                                                 */
 /* ------------------------------------------------------------------ */
 

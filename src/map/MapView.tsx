@@ -214,6 +214,8 @@ export function MapView() {
           .addTo(g.mine);
       }
       if (!show.procs) continue;
+      // Each fix once per airport, however many routes fly over it.
+      const marked = new Set<string>();
       for (const p of d.procedures ?? []) {
         const ink = p.type === 'SID' ? SID_INK : STAR_INK;
         for (const r of p.routes) {
@@ -231,7 +233,8 @@ export function MapView() {
               .addTo(g.procs);
           }
           for (const pt of geo.points) {
-            if (!pt.fix) continue;
+            if (!pt.fix || marked.has(pt.fix.ident)) continue;
+            marked.add(pt.fix.ident);
             L.marker([pt.lat, pt.lon], { icon: symbolIcon(fixSymbol(pt.fix.kind, 5, ink), pt.fix.ident, 14, 'proc-fix') }).addTo(g.procs);
           }
         }

@@ -43,19 +43,51 @@ export function procFixFromFaa(f: Fix): ProcFix {
   return { ident: f.ident, lat: f.lat, lon: f.lon, kind: WAYPOINT_USES.has(f.use) ? 'waypoint' : 'fix', source: 'faa' };
 }
 
-export function newProcedure(type: Procedure['type'], runways: string[]): Procedure {
-  const route = (kind: ProcRoute['kind'], name: string): ProcRoute => ({ id: uid(), kind, name, legs: [] });
+export const newRoute = (kind: ProcRoute['kind'], name = ''): ProcRoute => ({ id: uid(), kind, name, legs: [] });
+
+/**
+ * A new SID (from the first runway) or STAR (from an unnamed transition), named
+ * after the airport's city the way procedures often are: "ANYTOWN ONE", "ANYTO1".
+ */
+export function newProcedure(type: Procedure['type'], doc: AirportDoc): Procedure {
+  const word = (doc.meta.city || doc.meta.ident || 'NEW').toUpperCase().replace(/[^A-Z ]/g, '').split(' ')[0] || 'NEW';
+  const taken = new Set((doc.procedures ?? []).map((p) => p.code));
+  let n = 1;
+  while (taken.has(`${word.slice(0, 5)}${n}`)) n++;
+  const numbers = ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'];
+  const firstRunway = [...runwayEnds(doc).keys()][0];
   return {
     id: uid(),
     type,
-    name: type === 'SID' ? 'NEW ONE' : 'NEW ONE',
-    code: 'NEW1',
+    name: `${word} ${numbers[n - 1] ?? n}`,
+    code: `${word.slice(0, 5)}${n}`,
     rnav: false,
-    routes: runways.length ? runways.map((r) => route('runway', r)) : [route('common', '')],
+    routes: type === 'SID' ? [newRoute('runway', firstRunway ?? '')] : [newRoute('transition'), newRoute('common')],
     ...(type === 'SID' ? { maintain: '', expect: '' } : {}),
     notes: '',
   };
 }
+
+/* Document edits: each returns the airport with one change made. */
+
+export const withProcedure = (doc: AirportDoc, p: Procedure): AirportDoc => {
+  const list = doc.procedures ?? [];
+  return { ...doc, procedures: list.some((x) => x.id === p.id) ? list.map((x) => (x.id === p.id ? p : x)) : [...list, p] };
+};
+
+export const withoutProcedure = (doc: AirportDoc, id: string): AirportDoc => ({ ...doc, procedures: (doc.procedures ?? []).filter((p) => p.id !== id) });
+
+/** Add a fix, or replace the one with its ident. */
+export const withFix = (doc: AirportDoc, fix: ProcFix): AirportDoc => ({
+  ...doc,
+  fixes: [...(doc.fixes ?? []).filter((x) => x.ident !== fix.ident), fix],
+});
+
+/** Remove a fix no procedure uses. */
+export const withoutFix = (doc: AirportDoc, ident: string): AirportDoc => ({ ...doc, fixes: (doc.fixes ?? []).filter((x) => x.ident !== ident) });
+
+export const fixInUse = (doc: AirportDoc, ident: string) =>
+  (doc.procedures ?? []).some((p) => p.routes.some((r) => r.legs.some((l) => l.type === 'fix' && l.fix === ident)));
 
 /* ------------------------------------------------------------------ */
 /* Runway ends                                                        */

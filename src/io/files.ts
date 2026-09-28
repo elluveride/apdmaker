@@ -1,7 +1,8 @@
 import { createElement } from 'react';
 import { derive } from '../model/derive';
-import type { AirportDoc } from '../model/types';
+import type { AirportDoc, Procedure } from '../model/types';
 import { SheetSvg } from '../render/Sheet';
+import { PROC_PAGE, ProcedureChart } from '../render/ProcedureChart';
 import { SurfaceLayer } from '../render/SurfaceLayer';
 import { SURFACE } from '../render/palette';
 import { isAirportDoc, normalizeDoc } from '../store/store';
@@ -133,6 +134,18 @@ export async function exportSheetJpg(doc: AirportDoc, dpi = 300): Promise<SaveOu
 export async function exportSurfacePng(doc: AirportDoc): Promise<SaveOutcome> {
   const { svg, w, h } = await surfaceSvgString(doc);
   return saveFile(await svgToImage(svg, w, h), `${slug(doc)}-surface.png`);
+}
+
+export async function procedureSvgString(doc: AirportDoc, proc: Procedure): Promise<string> {
+  return withFonts(await render(createElement(ProcedureChart, { doc, proc })), await embeddedFontCss());
+}
+
+/** A SID or STAR chart as a 300 dpi JPEG. */
+export async function exportProcedureJpg(doc: AirportDoc, proc: Procedure, dpi = 300): Promise<SaveOutcome> {
+  const k = dpi / 72;
+  const image = await svgToImage(await procedureSvgString(doc, proc), Math.round(PROC_PAGE.width * k), Math.round(PROC_PAGE.height * k), 'image/jpeg');
+  const name = (proc.code || proc.name).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  return saveFile(image, `${slug(doc)}-${name}.jpg`);
 }
 
 export function exportJson(doc: AirportDoc): Promise<SaveOutcome> {
