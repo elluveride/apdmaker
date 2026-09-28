@@ -79,7 +79,25 @@ Click the airport name in the top bar to open **My airports**. Each airport you 
 
 ### Starting from a real airport
 
-Pick a real airport on the map and choose **Start a chart from this airport**. Its runways are laid out between their real threshold coordinates, with their lengths, widths, surfaces and designators, and its frequencies and magnetic variation are filled in. Runway data comes from OurAirports, which is maintained by volunteers, so check it against the real diagram. Taxiways, aprons and buildings are yours to draw; trace a satellite picture for those.
+Pick a real airport on the map and choose **Start a chart from this airport**. It comes with:
+
+- its runways between their real threshold coordinates, with lengths, widths, surfaces and designators (from OurAirports; OpenStreetMap fills in any it has no coordinates for)
+- its taxiways with their designators, aprons, terminals, hangars and other buildings, and its wind cones, tower and helipads (from OpenStreetMap)
+- its frequencies and magnetic variation
+
+Hold-short lines are placed where taxiways meet runways, as for ones you draw. Both sources are mapped by volunteers, so check the result against the real diagram.
+
+### Adding real detail to an airport you've made
+
+**Airport → Add real detail…** (or **Add real detail…** on the map) adds what OpenStreetMap has for the airport and your drawing is missing. You see what would be added, and a preview of the chart, before anything changes. Pick which kinds to add; everything is added as one step that `Ctrl+Z` takes back.
+
+It never changes what you've drawn:
+
+- A taxiway that runs along one you've drawn is left out, whatever you called yours. So is an apron or building on top of one of yours, a runway you already have, and a symbol near one of the same kind.
+- New taxiways take the width and edge lines of the ones you've drawn.
+- Nothing you've drawn moves. If your airport was traced from a picture and sits a little off, turned or scaled, the real data is lined up with your runways instead, so the new taxiways meet your runways where they should.
+
+Run it again later to pick up what's been mapped since. The airport needs a position on the map. OpenStreetMap is credited in the chart notes, as its licence asks.
 
 ## Map
 
@@ -105,6 +123,7 @@ Search by identifier or name. A real US airport links to its current FAA airport
 ## Data sources
 
 - Airports, runways, frequencies and navaids: [OurAirports](https://ourairports.com/data/), public domain.
+- Taxiways, aprons, buildings and field symbols: [OpenStreetMap](https://www.openstreetmap.org/copyright) through the [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API), © OpenStreetMap contributors, under the ODbL. They're fetched when you ask for them, one airport at a time.
 - US fixes and waypoints: the FAA's [28-day NASR subscription](https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/), for the current AIRAC cycle.
 - Airport diagram links: the FAA's [digital Terminal Procedures Publication](https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/dtpp/) metafile.
 - Map tiles: [OpenStreetMap](https://www.openstreetmap.org/copyright), under its [tile usage policy](https://operations.osmfoundation.org/policies/tiles/). Set `VITE_MAP_TILES` to another `{z}/{x}/{y}` tile URL to use your own tile server.
@@ -127,12 +146,13 @@ Stack: Vite, React, TypeScript, Zustand, Leaflet, and plain SVG.
 src/
   model/    data model, geometry (bezier, flattening, curve fitting),
             runway designators, hold-short detection, auto-smooth, sheet layout, sample airport,
-            procedures (routes, wording), airports from real data
+            procedures (routes, wording), airports from real data, OpenStreetMap merge
   render/   ChartLayer (FAA style), SurfaceLayer (markings), Sheet (full chart page),
             ProcedureChart (SID / STAR page)
   editor/   canvas, pan/zoom, tools (runway, pen, rectangle...), snapping, overlays
   store/    document, selection, undo history, autosave, airport library
-  nav/      real navigation data: loading, great-circle math, OurAirports runways
+  nav/      real navigation data: loading, great-circle math, OurAirports runways,
+            OpenStreetMap airport features
   map/      the map and its chart symbols
   proc/     the SID / STAR editor
   ui/       toolbar, inspector, layers, airport settings, viewer, library

@@ -49,6 +49,16 @@ export function AirportPanel() {
         </Row>
       </Section>
 
+      <Section title="Real-world detail">
+        <p className="muted small">
+          Add the taxiways, aprons, buildings, runways and wind cones OpenStreetMap has for this airport and your drawing is missing. Nothing
+          you’ve drawn is moved or changed, and a traced drawing is lined up by its runways.
+        </p>
+        <button type="button" className="btn" onClick={() => useStore.getState().setShowImprove(true)}>
+          Add real detail…
+        </button>
+      </Section>
+
       <ReferenceSection />
 
       <Section title="Magnetic variation">

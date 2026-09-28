@@ -123,7 +123,7 @@ export function SheetSvg({ doc, derived, width, height }: Props) {
             </text>
           ))}
           {notes.map((line, i) => (
-            <text key={`n${i}`} x={0} y={freqH + 7 + i * noteSize * 1.25} fontSize={noteSize} fontWeight={500} fill={CHART.ink}>
+            <text key={`n${i}`} x={0} y={freqH + 7 + i * noteSize * 1.25} fontSize={noteSize} fontWeight={500} fill={CHART.ink} stroke={CHART.paper} strokeWidth={1.4} strokeLinejoin="round" paintOrder="stroke">
               {line}
             </text>
           ))}

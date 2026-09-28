@@ -75,6 +75,8 @@ interface State {
   panelOpen: boolean;
   showHelp: boolean;
   showLibrary: boolean;
+  /** The "add real detail" dialog is open. */
+  showImprove: boolean;
   showWelcome: boolean;
   /** Bumped to ask the inspector to focus the selected label's text. */
   focusTick: number;
@@ -143,6 +145,7 @@ interface State {
   toggleGrid: () => void;
   setShowHelp: (v: boolean) => void;
   setShowLibrary: (v: boolean) => void;
+  setShowImprove: (v: boolean) => void;
   dismissWelcome: () => void;
   requestFocusText: () => void;
   showToast: (text: string) => void;
@@ -296,6 +299,7 @@ export const useStore = create<State>((set, get) => ({
   panelOpen: typeof window === 'undefined' || window.innerWidth > 760,
   showHelp: false,
   showLibrary: false,
+  showImprove: false,
   showWelcome: safeRead(WELCOME_KEY) !== '1',
   focusTick: 0,
   toast: null,
@@ -574,6 +578,7 @@ export const useStore = create<State>((set, get) => ({
   toggleGrid: () => set((s) => ({ grid: !s.grid })),
   setShowHelp: (showHelp) => set({ showHelp }),
   setShowLibrary: (showLibrary) => set({ showLibrary }),
+  setShowImprove: (showImprove) => set({ showImprove }),
   dismissWelcome: () => {
     safeWrite(WELCOME_KEY, '1');
     set({ showWelcome: false });

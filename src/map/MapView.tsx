@@ -438,10 +438,15 @@ function RealAirportDetails({ airport: a }: { airport: RealAirport }) {
     setBusy(true);
     const s = useStore.getState();
     try {
-      const { doc, placed, skipped } = await importRealAirport(a);
-      const runways = `${placed} runway${placed === 1 ? '' : 's'}${skipped ? ` (${skipped} without coordinates left out)` : ''}`;
+      const { doc, osm } = await importRealAirport(a);
+      const count = (kind: string) => doc.features.filter((f) => f.kind === kind).length;
+      const n = (k: number, one: string, many: string) => `${k.toLocaleString('en-US')} ${k === 1 ? one : many}`;
       const variation = doc.meta.magVar ? ` Variation ${Math.abs(doc.meta.magVar)}° ${doc.meta.magVar >= 0 ? 'E' : 'W'} from the nearest VOR; check it.` : ' Set its magnetic variation in the Airport tab.';
-      s.addAirport(doc, `Started ${a.ident} from real data: ${runways} and frequencies.${variation} Add taxiways by tracing a picture of it.`);
+      const detail =
+        'error' in osm
+          ? `${n(count('runway'), 'runway', 'runways')} and frequencies from OurAirports. Taxiways and buildings from OpenStreetMap didn’t load (${osm.error.replace(/\.$/, '')}); try Airport → Add real detail later.`
+          : `${n(count('runway'), 'runway', 'runways')}, ${n(count('taxiway'), 'taxiway', 'taxiways')}, ${n(doc.features.filter((f) => f.kind === 'area' && f.areaType === 'apron').length, 'apron', 'aprons')}, ${n(doc.features.filter((f) => f.kind === 'area' && f.areaType === 'building').length, 'building', 'buildings')} and frequencies from OurAirports and OpenStreetMap.`;
+      s.addAirport(doc, `Started ${a.ident}: ${detail}${variation}`);
       s.setMode('edit');
     } catch (err) {
       s.showToast(err instanceof Error ? err.message : 'Could not load that airport’s data.');
@@ -522,6 +527,11 @@ function MyAirportDetails({ id, onPlace }: { id: string; onPlace: () => void }) 
         {id === current && (
           <button type="button" className="btn" onClick={onPlace}>
             Move on map
+          </button>
+        )}
+        {doc.meta.refLat !== undefined && (
+          <button type="button" className="btn" onClick={() => { s().openAirport(id); s().setMode('edit'); s().setShowImprove(true); }}>
+            Add real detail…
           </button>
         )}
       </div>

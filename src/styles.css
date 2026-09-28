@@ -2239,3 +2239,64 @@ kbd {
     font-size: 12.5px;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Add real detail                                                     */
+/* ------------------------------------------------------------------ */
+
+.modal.improve {
+  width: min(620px, 100%);
+}
+
+.improve-body {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 18px;
+  align-items: start;
+  margin: 10px 0 16px;
+}
+
+.improve-kinds {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.improve-kinds label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.improve-kinds input {
+  accent-color: var(--select);
+}
+
+.improve-preview {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+  line-height: 0;
+}
+
+.improve-note {
+  margin: 14px 0 18px;
+}
+
+.improve-note.error {
+  color: var(--danger, #b42318);
+}
+
+@media (max-width: 560px) {
+  .improve-body {
+    grid-template-columns: 1fr;
+  }
+  .improve-preview {
+    justify-self: center;
+  }
+}

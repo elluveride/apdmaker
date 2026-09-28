@@ -3,8 +3,10 @@
  * (which allows it) the first time an airport is started from real data.
  */
 import { csvRecords } from '../../scripts/navdata-lib.mjs';
+import { IMPROVE_KINDS, withImprovement, type ImproveKind } from '../model/osmAirport';
 import { docFromRealAirport, nearbyVariation, type RealAirportImport } from '../model/realAirport';
 import { allNavaids, type RealAirport } from './data';
+import { osmImprovement } from './osm';
 
 const SOURCE = 'https://davidmegginson.github.io/ourairports-data';
 
@@ -34,17 +36,29 @@ function byAirport(name: string): Promise<Grouped> {
   return p;
 }
 
-/** An airport document for a real airport: its runways where they are, its frequencies and a nearby variation. */
-export async function importRealAirport(airport: RealAirport): Promise<RealAirportImport> {
+export interface FullImport extends RealAirportImport {
+  /** What OpenStreetMap added, by kind, or why it couldn't. */
+  osm: { added: Record<ImproveKind, number> } | { error: string };
+}
+
+/**
+ * An airport document for a real airport: its runways where they are (from
+ * OurAirports, or OpenStreetMap where OurAirports has no coordinates), its
+ * taxiways, aprons, buildings and field symbols from OpenStreetMap, its
+ * frequencies, and a nearby variation.
+ */
+export async function importRealAirport(airport: RealAirport): Promise<FullImport> {
   const [runways, frequencies, navaids] = await Promise.all([
     byAirport('runways.csv'),
     byAirport('airport-frequencies.csv'),
     allNavaids().catch(() => []),
   ]);
-  return docFromRealAirport(
-    airport,
-    runways.get(airport.ident) ?? [],
-    frequencies.get(airport.ident) ?? [],
-    nearbyVariation(airport, navaids),
-  );
+  const base = docFromRealAirport(airport, runways.get(airport.ident) ?? [], frequencies.get(airport.ident) ?? [], nearbyVariation(airport, navaids));
+  try {
+    const imp = await osmImprovement(base.doc, airport.iata);
+    const added = Object.fromEntries(IMPROVE_KINDS.map((k) => [k, imp.add[k].length])) as Record<ImproveKind, number>;
+    return { ...base, doc: withImprovement(base.doc, imp, IMPROVE_KINDS), osm: { added } };
+  } catch (e) {
+    return { ...base, osm: { error: e instanceof Error ? e.message : String(e) } };
+  }
 }

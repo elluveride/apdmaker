@@ -9,6 +9,7 @@ import { LayersPanel } from './ui/LayersPanel';
 import { HandOff, SaveBar } from './ui/SaveBar';
 import { MapView } from './map/MapView';
 import { ProceduresView } from './proc/ProceduresView';
+import { ImproveDialog } from './ui/ImproveDialog';
 import { Library } from './ui/Library';
 import { Help, Toast, Welcome } from './ui/Overlays';
 import { StatusBar } from './ui/StatusBar';
@@ -110,6 +111,7 @@ export function App() {
         <Welcome />
         <Help />
         <Library />
+        <ImproveDialog />
         <HandOff />
         <Toast />
       </div>
