@@ -15,6 +15,17 @@ import {
   type TurnStyle,
 } from '../model/smooth';
 import type { AirportDoc, AirportMeta, Feature, ID, ReferenceImage, SymbolType, Taxiway } from '../model/types';
+import {
+  entryFor,
+  openLibrary,
+  readDoc,
+  removeDoc,
+  withEntry,
+  writeDoc,
+  writeIndex,
+  type KeyValueStore,
+  type LibraryEntry,
+} from './library';
 
 export type ToolId =
   | 'select'
@@ -27,7 +38,7 @@ export type ToolId =
   | 'symbol'
   | 'hotspot';
 
-export type Mode = 'edit' | 'view';
+export type Mode = 'edit' | 'view' | 'procedures' | 'map';
 export type RenderStyle = 'chart' | 'surface';
 export type PanelTab = 'inspect' | 'layers' | 'airport';
 
@@ -63,6 +74,7 @@ interface State {
   panel: PanelTab;
   panelOpen: boolean;
   showHelp: boolean;
+  showLibrary: boolean;
   showWelcome: boolean;
   /** Bumped to ask the inspector to focus the selected label's text. */
   focusTick: number;
@@ -85,9 +97,17 @@ interface State {
   commit: (fn: (d: AirportDoc) => AirportDoc, key?: string) => void;
   undo: () => void;
   redo: () => void;
-  loadDoc: (doc: AirportDoc) => void;
-  /** A blank airport that keeps the reference image being traced, and the view on it. */
-  startBlank: () => void;
+  /** The airports in the library, most recently changed first. */
+  library: LibraryEntry[];
+  /** Which library airport is open. */
+  airportId: string;
+  /** Add an airport to the library and open it. */
+  addAirport: (doc: AirportDoc, message?: string) => void;
+  openAirport: (id: string) => void;
+  duplicateAirport: (id: string) => void;
+  deleteAirport: (id: string) => void;
+  /** A library airport's document: the open one as it is now, the others as saved. */
+  airportDoc: (id: string) => AirportDoc | null;
 
   addFeature: (f: Feature) => void;
   updateFeature: <F extends Feature>(id: ID, fn: (f: F) => F, key?: string) => void;
@@ -122,6 +142,7 @@ interface State {
   toggleSnap: () => void;
   toggleGrid: () => void;
   setShowHelp: (v: boolean) => void;
+  setShowLibrary: (v: boolean) => void;
   dismissWelcome: () => void;
   requestFocusText: () => void;
   showToast: (text: string) => void;
@@ -129,10 +150,8 @@ interface State {
   setPrinting: (v: boolean) => void;
 }
 
-const STORAGE_KEY = 'apdmaker.doc.v1';
 const WELCOME_KEY = 'apdmaker.welcomed';
 const TURNS_KEY = 'apdmaker.smoothTurns';
-const REFERENCE_KEY = 'apdmaker.reference.v1';
 const HISTORY_LIMIT = 200;
 
 function safeRead(key: string): string | null {
@@ -161,26 +180,55 @@ export function normalizeDoc(d: AirportDoc): AirportDoc {
   return { ...d, meta: { ...emptyDoc().meta, ...d.meta } };
 }
 
-/** The autosaved doc keeps its reference image under a key of its own; put it back, or drop it if it is gone. */
-function withSavedReference(doc: AirportDoc): AirportDoc {
-  if (!doc.reference) return doc;
-  const src = safeRead(REFERENCE_KEY);
-  if (src) return { ...doc, reference: { ...doc.reference, src } };
-  const { reference: _lost, ...rest } = doc;
-  return rest;
+/** Browser storage, or a stand-in that forgets on reload where storage is switched off. */
+function browserStorage(): KeyValueStore {
+  try {
+    localStorage.setItem('apdmaker.probe', '1');
+    localStorage.removeItem('apdmaker.probe');
+    return localStorage;
+  } catch {
+    const m = new Map<string, string>();
+    return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) };
+  }
 }
 
-function initialDoc(): AirportDoc {
-  const raw = safeRead(STORAGE_KEY);
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (isAirportDoc(parsed)) return withSavedReference(normalizeDoc(parsed));
-    } catch {
-      /* fall through to the sample */
+const storage = browserStorage();
+const opened = openLibrary(storage, isAirportDoc, normalizeDoc, sampleDoc);
+
+/*
+ * Autosave, debounced, into the open airport's place in the library. The
+ * reference image is written only when it changes, and apart from the drawing.
+ */
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+let savedImage: string | null = opened.doc.reference?.src ?? null;
+let warnedImage = false;
+
+function saveNow() {
+  clearTimeout(saveTimer);
+  saveTimer = undefined;
+  const { doc, airportId, library } = useStore.getState();
+  try {
+    const result = writeDoc(storage, airportId, doc, savedImage);
+    savedImage = result.image;
+    if (!result.imageSaved && !warnedImage) {
+      warnedImage = true;
+      useStore.getState().showToast('The reference image is too large to keep after a reload. Save the airport file (.json) to keep it.');
     }
+  } catch {
+    return;
   }
-  return sampleDoc();
+  const index = withEntry({ current: airportId, airports: library }, entryFor(airportId, doc));
+  try {
+    writeIndex(storage, index);
+  } catch {
+    /* the drawing is saved; the index catches up on the next change */
+  }
+  useStore.setState({ library: index.airports });
+}
+
+/** Save now whatever is waiting, before switching away from the open airport. */
+function flushSave() {
+  if (saveTimer !== undefined) saveNow();
 }
 
 const pushPast = (past: AirportDoc[], doc: AirportDoc) => [...past, doc].slice(-HISTORY_LIMIT);
@@ -228,7 +276,9 @@ function smoothTaxiway(get: () => State, doc: AirportDoc, id: ID) {
 }
 
 export const useStore = create<State>((set, get) => ({
-  doc: initialDoc(),
+  doc: opened.doc,
+  library: opened.index.airports,
+  airportId: opened.index.current,
   past: [],
   future: [],
   lastKey: null,
@@ -245,6 +295,7 @@ export const useStore = create<State>((set, get) => ({
   panel: 'inspect',
   panelOpen: typeof window === 'undefined' || window.innerWidth > 760,
   showHelp: false,
+  showLibrary: false,
   showWelcome: safeRead(WELCOME_KEY) !== '1',
   focusTick: 0,
   toast: null,
@@ -298,21 +349,90 @@ export const useStore = create<State>((set, get) => ({
       };
     }),
 
-  loadDoc: (doc) => {
-    get().commit(() => doc);
-    set({ selection: { id: null, node: null }, fitRequest: get().fitRequest + 1 });
+  addAirport: (doc, message) => {
+    flushSave();
+    const id = uid();
+    const index = withEntry({ current: id, airports: get().library }, entryFor(id, doc));
+    try {
+      savedImage = writeDoc(storage, id, doc, null).image;
+      writeIndex(storage, index);
+    } catch {
+      savedImage = null;
+    }
+    set({
+      doc,
+      airportId: id,
+      library: index.airports,
+      past: [],
+      future: [],
+      lastKey: null,
+      selection: { id: null, node: null },
+      fitRequest: get().fitRequest + 1,
+    });
+    if (message) get().showToast(message);
   },
 
-  startBlank: () => {
-    const { reference } = get().doc;
-    if (!reference) {
-      get().loadDoc(emptyDoc());
-      get().showToast('Started a blank airport. Undo brings the old one back.');
+  openAirport: (id) => {
+    if (id === get().airportId) return;
+    flushSave();
+    const doc = readDoc(storage, id, isAirportDoc);
+    if (!doc) {
+      get().showToast('That airport could not be read from this browser’s storage.');
       return;
     }
-    get().commit(() => ({ ...emptyDoc(), reference }));
-    set({ selection: { id: null, node: null } });
-    get().showToast('Started a blank airport over the same reference image. Undo brings the old one back.');
+    savedImage = doc.reference?.src ?? null;
+    try {
+      writeIndex(storage, { current: id, airports: get().library });
+    } catch {
+      /* it opens anyway */
+    }
+    set({
+      doc: normalizeDoc(doc),
+      airportId: id,
+      past: [],
+      future: [],
+      lastKey: null,
+      selection: { id: null, node: null },
+      fitRequest: get().fitRequest + 1,
+    });
+  },
+
+  duplicateAirport: (id) => {
+    const doc = get().airportDoc(id);
+    if (!doc) return;
+    get().addAirport({ ...doc, meta: { ...doc.meta, name: `${doc.meta.name} COPY` } }, `Made a copy of ${doc.meta.ident || doc.meta.name}.`);
+  },
+
+  deleteAirport: (id) => {
+    const { airportId, library } = get();
+    const gone = library.find((a) => a.id === id);
+    const rest = library.filter((a) => a.id !== id);
+    if (id === airportId) {
+      // Nothing left to save for it.
+      clearTimeout(saveTimer);
+      saveTimer = undefined;
+    }
+    removeDoc(storage, id);
+    set({ library: rest });
+    if (id === airportId) {
+      const next = rest[0];
+      set({ airportId: '' });
+      if (next) get().openAirport(next.id);
+      else get().addAirport(emptyDoc());
+    } else {
+      try {
+        writeIndex(storage, { current: airportId, airports: rest });
+      } catch {
+        /* removed from the list anyway */
+      }
+    }
+    if (gone) get().showToast(`Deleted ${gone.ident || gone.name}.`);
+  },
+
+  airportDoc: (id) => {
+    if (id === get().airportId) return get().doc;
+    const doc = readDoc(storage, id, isAirportDoc);
+    return doc && normalizeDoc(doc);
   },
 
   addFeature: (f) => {
@@ -453,6 +573,7 @@ export const useStore = create<State>((set, get) => ({
   toggleSnap: () => set((s) => ({ snap: !s.snap })),
   toggleGrid: () => set((s) => ({ grid: !s.grid })),
   setShowHelp: (showHelp) => set({ showHelp }),
+  setShowLibrary: (showLibrary) => set({ showLibrary }),
   dismissWelcome: () => {
     safeWrite(WELCOME_KEY, '1');
     set({ showWelcome: false });
@@ -486,40 +607,15 @@ function offsetFeature(f: Feature, d: number): Feature {
   }
 }
 
-/*
- * Autosave, debounced. A reference image is kept under its own key and only
- * rewritten when it changes, so a large picture never stops the drawing
- * itself from being saved.
- */
-let saveTimer: ReturnType<typeof setTimeout> | undefined;
-let savedReferenceSrc = safeRead(REFERENCE_KEY) ?? '';
-let warnedReferenceTooBig = false;
-
-function saveDoc(doc: AirportDoc) {
-  const ref = doc.reference;
-  safeWrite(STORAGE_KEY, JSON.stringify(ref ? { ...doc, reference: { ...ref, src: '' } } : doc));
-  const src = ref?.src ?? '';
-  if (src === savedReferenceSrc) return;
-  try {
-    if (src) localStorage.setItem(REFERENCE_KEY, src);
-    else localStorage.removeItem(REFERENCE_KEY);
-    savedReferenceSrc = src;
-  } catch {
-    if (warnedReferenceTooBig) return;
-    warnedReferenceTooBig = true;
-    useStore
-      .getState()
-      .showToast(
-        'The reference image is too large to keep after a reload. Save the airport file (.json) to keep it.',
-      );
-  }
-}
-
 useStore.subscribe((s, prev) => {
-  if (s.doc === prev.doc) return;
+  // Opening another airport isn't a change to save.
+  if (s.doc === prev.doc || s.airportId !== prev.airportId) return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => saveDoc(s.doc), 400);
+  saveTimer = setTimeout(saveNow, 400);
 });
+
+// Don't lose the last half-second of work when the tab closes.
+if (typeof window !== 'undefined') window.addEventListener('pagehide', flushSave);
 
 export const selectedFeature = (s: State): Feature | undefined =>
   s.selection.id ? s.doc.features.find((f) => f.id === s.selection.id) : undefined;

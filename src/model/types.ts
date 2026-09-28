@@ -169,9 +169,67 @@ export interface ReferenceImage {
   scaledFrom?: { runway: string; length: number };
 }
 
+/** What a procedure fix is, which decides its chart symbol. */
+export type FixKind = 'waypoint' | 'fix' | 'vor' | 'vordme' | 'vortac' | 'tacan' | 'dme' | 'ndb';
+
+/**
+ * A fix or navaid a procedure flies over, with where it is. Real ones are
+ * copied in when used, so an airport file stands on its own.
+ */
+export interface ProcFix {
+  ident: string;
+  lat: number;
+  lon: number;
+  kind: FixKind;
+  /** Navaid name and frequency, for its box on the chart. */
+  name?: string;
+  freq?: string;
+  source: 'faa' | 'ourairports' | 'custom';
+}
+
+/** Altitude limits at a fix, ft. Equal limits mean "cross at". */
+export interface AltLimits {
+  atOrAbove?: number;
+  atOrBelow?: number;
+}
+
+export type ProcLeg =
+  /** Fly to a fix. */
+  | { type: 'fix'; fix: string; alt?: AltLimits; speed?: number }
+  /** Fly a heading, until an altitude or (without one) for radar vectors. */
+  | { type: 'heading'; heading: number; untilAlt?: number };
+
+export interface ProcRoute {
+  id: ID;
+  /** A runway's part, the part every runway shares, or a transition to or from the en-route structure. */
+  kind: 'runway' | 'common' | 'transition';
+  /** The runway it serves, e.g. "26L", or the transition's name. */
+  name: string;
+  legs: ProcLeg[];
+}
+
+/** A standard instrument departure or standard terminal arrival. */
+export interface Procedure {
+  id: ID;
+  type: 'SID' | 'STAR';
+  /** e.g. "CACTUS ONE". */
+  name: string;
+  /** Computer code, e.g. "CACTS1". */
+  code: string;
+  rnav: boolean;
+  routes: ProcRoute[];
+  /** SID: the altitude to climb to and expect, e.g. "5000" and "FL230 10 MIN AFTER DEPARTURE". */
+  maintain?: string;
+  expect?: string;
+  notes: string;
+}
+
 export interface AirportDoc {
   version: 1;
   meta: AirportMeta;
   features: Feature[];
   reference?: ReferenceImage;
+  /** Fixes the procedures use. */
+  fixes?: ProcFix[];
+  procedures?: Procedure[];
 }

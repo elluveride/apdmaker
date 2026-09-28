@@ -6,7 +6,7 @@ import { RunwayIcon, TaxiwayIcon } from './icons';
 export function Welcome() {
   const show = useStore((s) => s.showWelcome);
   const dismiss = useStore((s) => s.dismissWelcome);
-  const loadDoc = useStore((s) => s.loadDoc);
+  const addAirport = useStore((s) => s.addAirport);
   const setTool = useStore((s) => s.setTool);
   if (!show) return null;
   return (
@@ -64,7 +64,7 @@ export function Welcome() {
             type="button"
             className="btn primary"
             onClick={() => {
-              loadDoc(emptyDoc());
+              addAirport(emptyDoc());
               setTool('runway');
               dismiss();
             }}

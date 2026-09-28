@@ -1,5 +1,6 @@
 import { derive } from '../model/derive';
 import { sheetLayout } from '../model/sheet';
+import { emptyDoc } from '../model/defaults';
 import { sampleDoc } from '../model/sample';
 import type { Frequency } from '../model/types';
 import { useStore } from '../store/store';
@@ -11,9 +12,7 @@ export function AirportPanel() {
   const meta = useStore((s) => s.doc.meta);
   const doc = useStore((s) => s.doc);
   const patchMeta = useStore((s) => s.patchMeta);
-  const loadDoc = useStore((s) => s.loadDoc);
-  const startBlank = useStore((s) => s.startBlank);
-  const showToast = useStore((s) => s.showToast);
+  const addAirport = useStore((s) => s.addAirport);
   const autoScale = sheetLayout({ ...doc, meta: { ...meta, textScale: undefined } }, derive(doc).bounds).textScale;
 
   const setFreq = (i: number, patch: Partial<Frequency>) =>
@@ -155,22 +154,19 @@ export function AirportPanel() {
       </Section>
 
       <Section title="Start over" defaultOpen={false}>
-        <p className="muted small">Both can be undone with Ctrl+Z.</p>
+        <p className="muted small">Both add a new airport to your library; this one stays under File → My airports.</p>
         <div className="btn-row">
           <button
             type="button"
             className="btn"
-            onClick={startBlank}
+            onClick={() => addAirport(emptyDoc(), 'Started a new airport. Your others are under File → My airports.')}
           >
             Blank airport
           </button>
           <button
             type="button"
             className="btn"
-            onClick={() => {
-              loadDoc(sampleDoc());
-              showToast('Loaded the sample airport.');
-            }}
+            onClick={() => addAirport(sampleDoc(), 'Added a copy of the sample airport.')}
           >
             Load sample
           </button>

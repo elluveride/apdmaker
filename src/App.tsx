@@ -7,6 +7,7 @@ import { AirportPanel } from './ui/AirportPanel';
 import { Inspector } from './ui/Inspector';
 import { LayersPanel } from './ui/LayersPanel';
 import { HandOff, SaveBar } from './ui/SaveBar';
+import { Library } from './ui/Library';
 import { Help, Toast, Welcome } from './ui/Overlays';
 import { StatusBar } from './ui/StatusBar';
 import { Toolbar, ToolOptions } from './ui/Toolbar';
@@ -102,6 +103,7 @@ export function App() {
         <StatusBar />
         <Welcome />
         <Help />
+        <Library />
         <HandOff />
         <Toast />
       </div>

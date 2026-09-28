@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { emptyDoc } from '../model/defaults';
 import { sampleDoc } from '../model/sample';
 import { exportJson, exportSheetJpg, exportSheetPng, exportSheetSvg, exportSurfacePng, readDocFile } from '../io/files';
 import { EMBEDDED } from '../env';
@@ -23,7 +24,7 @@ export function TopBar() {
         <BrandMark />
         <span className="brand-name">APD Maker</span>
       </div>
-      <button type="button" className="airport-chip" onClick={() => s().setPanel('airport')} title="Airport details">
+      <button type="button" className="airport-chip" onClick={() => s().setShowLibrary(true)} title="My airports: switch, add or copy">
         <span className="chip-name">{doc.meta.name || 'Untitled airport'}</span>
         <span className="chip-ident mono">{doc.meta.ident}</span>
       </button>
@@ -117,10 +118,13 @@ function FileMenu() {
       </button>
       {open && (
         <div className="menu-list" role="menu">
-          <button role="menuitem" type="button" onClick={run(() => s().startBlank())}>
+          <button role="menuitem" type="button" onClick={run(() => s().setShowLibrary(true))}>
+            My airports…
+          </button>
+          <button role="menuitem" type="button" onClick={run(() => s().addAirport(emptyDoc(), 'Started a new airport. Your others are under File → My airports.'))}>
             New blank airport
           </button>
-          <button role="menuitem" type="button" onClick={run(() => { s().loadDoc(sampleDoc()); s().showToast('Loaded the sample airport.'); })}>
+          <button role="menuitem" type="button" onClick={run(() => s().addAirport(sampleDoc(), 'Added a copy of the sample airport.'))}>
             Load sample airport
           </button>
           <button role="menuitem" type="button" onClick={() => { setOpen(false); fileRef.current?.click(); }}>
@@ -162,8 +166,7 @@ function FileMenu() {
           e.target.value = '';
           if (!file) return;
           try {
-            s().loadDoc(await readDocFile(file));
-            s().showToast(`Opened ${file.name}.`);
+            s().addAirport(await readDocFile(file), `Opened ${file.name} as a new airport in your library.`);
           } catch (err) {
             s().showToast(err instanceof Error ? err.message : 'Could not open that file.');
           }
