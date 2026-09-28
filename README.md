@@ -2,6 +2,8 @@
 
 Draw custom airport diagrams that look like FAA charts (the *Airport Diagram* pages in the Terminal Procedures Publication), then view them as a finished chart sheet or as a simple surface view with painted markings.
 
+It also builds **SIDs and STARs** as terminal-procedures pages, and shows every real airport, navaid and US fix on a **map** next to the airports you've made.
+
 Everything runs in the browser. Work is saved automatically to local storage. The bar at the bottom of the sidebar has **Save .json**, which saves the airport file you can open again later, and **Export .jpg**, which exports the chart sheet at 300 dpi. Both are there on every tab.
 
 ## Drawing
@@ -71,28 +73,73 @@ Start with a runway, then add more in layers. The **Inspect** panel's checklist 
 
 Symbology follows the FAA airport diagram legend, marking dimensions follow AC 150/5340-1M, and taxiway turn geometry follows AC 150/5300-13A. Charts made here are for fun and illustration. **Not for navigation.**
 
+## My airports
+
+Click the airport name in the top bar to open **My airports**. Each airport you make is kept separately and saved as you work; open, copy or delete them there. Start a **New blank** airport, open a saved `.json` file, load the sample, or start **From a real airport**.
+
+### Starting from a real airport
+
+Pick a real airport on the map and choose **Start a chart from this airport**. Its runways are laid out between their real threshold coordinates, with their lengths, widths, surfaces and designators, and its frequencies and magnetic variation are filled in. Runway data comes from OurAirports, which is maintained by volunteers, so check it against the real diagram. Taxiways, aprons and buildings are yours to draw; trace a satellite picture for those.
+
+## Map
+
+**Map** shows:
+
+- every open airport in the world (large and medium ones at any zoom, small ones, heliports and seaplane bases as you zoom in)
+- VORs, VOR/DMEs, VORTACs, TACANs, DMEs and NDBs, from zoom 6
+- US fixes and RNAV waypoints, from zoom 9
+- your airports in magenta, with their SIDs (blue) and STARs (green)
+
+Search by identifier or name. A real US airport links to its current FAA airport diagram PDF. One of yours shows its chart, opens it, or lists its procedures. An airport of yours without a position asks you to click the map to place it; **Move on map** does it again.
+
+## SIDs & STARs
+
+**SIDs & STARs** builds departure and arrival procedures for the open airport. Place the airport on the map first so the procedures know where they are.
+
+- A procedure is made of **runway** routes, an optional **common** route, and **transitions**. Each route is a list of legs: fly to a fix, or fly a heading (to an altitude, or for radar vectors when it's the last leg).
+- Type a fix's identifier. Navaids worldwide and US fixes and waypoints within range of the airport are suggested. **Add a custom fix** makes your own from a radial and distance off a navaid (using the airport's magnetic variation) or from a latitude and longitude.
+- Each fix can take an altitude limit (at or above, at or below, both for a mandatory altitude or a window) and a speed. They are drawn the FAA way: a line under a minimum, over a maximum, both for a mandatory altitude.
+- The route description (`TAKEOFF RUNWAY 26L: CLIMB HEADING 262° TO 3000, THEN DIRECT PXR VORTAC.`) and transition codes (`CACTU1.BLH`) are written for you. Add a *maintain* and *expect* clause and notes.
+- The chart is drawn not to scale, as real ones are: bearings from the airport are true, and distance is compressed so the turns near the runway fit on the page with a long transition. Export it as a 300 dpi JPG.
+
+## Data sources
+
+- Airports, runways, frequencies and navaids: [OurAirports](https://ourairports.com/data/), public domain.
+- US fixes and waypoints: the FAA's [28-day NASR subscription](https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/), for the current AIRAC cycle.
+- Airport diagram links: the FAA's [digital Terminal Procedures Publication](https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/dtpp/) metafile.
+- Map tiles: [OpenStreetMap](https://www.openstreetmap.org/copyright), under its [tile usage policy](https://operations.osmfoundation.org/policies/tiles/). Set `VITE_MAP_TILES` to another `{z}/{x}/{y}` tile URL to use your own tile server.
+
+`npm run navdata` downloads these into `public/navdata/`: large and medium airports in one file, everything else and the fixes in tiles fetched as the map moves. The Pages workflow runs it on every deploy and every Monday, so the published data follows the FAA's cycles. The map and procedures work without it, just without real data.
+
 ## Development
 
 ```sh
 npm install
+npm run navdata    # optional: real airports, navaids and fixes into public/navdata
 npm run dev        # http://localhost:5173
-npm test           # geometry, designators, hold-short placement, auto-smooth
+npm test           # geometry, designators, hold-short placement, auto-smooth, navdata, procedures
 npm run build      # typecheck + production build into dist/
 ```
 
-Stack: Vite, React, TypeScript, Zustand, and plain SVG.
+Stack: Vite, React, TypeScript, Zustand, Leaflet, and plain SVG.
 
 ```
 src/
   model/    data model, geometry (bezier, flattening, curve fitting),
-            runway designators, hold-short detection, auto-smooth, sheet layout, sample airport
-  render/   ChartLayer (FAA style), SurfaceLayer (markings), Sheet (full chart page)
+            runway designators, hold-short detection, auto-smooth, sheet layout, sample airport,
+            procedures (routes, wording), airports from real data
+  render/   ChartLayer (FAA style), SurfaceLayer (markings), Sheet (full chart page),
+            ProcedureChart (SID / STAR page)
   editor/   canvas, pan/zoom, tools (runway, pen, rectangle...), snapping, overlays
-  store/    document, selection, undo history, autosave
-  ui/       toolbar, inspector, layers, airport settings, viewer
-  io/       SVG / PNG / JSON export and import
+  store/    document, selection, undo history, autosave, airport library
+  nav/      real navigation data: loading, great-circle math, OurAirports runways
+  map/      the map and its chart symbols
+  proc/     the SID / STAR editor
+  ui/       toolbar, inspector, layers, airport settings, viewer, library
+  io/       SVG / PNG / JPG / JSON export and import
+scripts/    navdata.mjs: builds public/navdata from OurAirports and the FAA
 ```
 
 Build with `VITE_EMBEDDED=true` for sandboxed frames that block downloads and printing, such as a claude.ai artifact. Printing is then hidden. A dialog then shows each file to save by hand: right-click the chart image to save it, or copy the airport file's text. Build with `VITE_ARTIFACT_RUNTIME=true` too, and publish with the artifact's `downloads` capability, to save through the viewer's save prompt instead.
 
-To publish on GitHub Pages, set **Settings → Pages → Source** to *GitHub Actions*. The **Deploy to GitHub Pages** workflow then publishes every push to `main`, and it can also be run by hand. A custom domain goes in the same settings page; GitHub ignores a `CNAME` file when it publishes from Actions.
+To publish on GitHub Pages, set **Settings → Pages → Source** to *GitHub Actions*. The **Deploy to GitHub Pages** workflow then publishes every push to `main`, and it can also be run by hand. A custom domain goes in the same settings page, with a `CNAME` DNS record pointing at `<user>.github.io`; GitHub ignores a `CNAME` file when it publishes from Actions. Scheduled runs only happen on the default branch.
